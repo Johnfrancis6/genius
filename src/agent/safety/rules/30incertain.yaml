@@ -1,0 +1,151 @@
+# safety/rules/20_urgent.yaml : situation urgente à traiter vite (niveau URGENT)
+version: 1
+rules:
+  - id: URG-001
+    status: draft
+    level: URGENT
+    label: Appel à l'aide direct
+    trigger:
+      type: phrases
+      any: [au secours, a l aide, aidez moi, sauvez le, sauvez la, sauvez moi]
+    message_key: urgency.urgent.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: URG-002
+    status: draft
+    level: URGENT
+    label: Difficulté à respirer
+    trigger:
+      type: phrases
+      any: [respire mal, difficile de respirer, du mal a respirer, manque d air, levres bleues, ne peut pas parler]
+    scenario: asthma
+    message_key: urgency.urgent.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: URG-003
+    status: draft
+    level: URGENT
+    label: Douleur thoracique
+    trigger:
+      type: phrases
+      any: [douleur poitrine, mal a la poitrine, oppression poitrine, poitrine serree, douleur au thorax]
+    scenario: cardiac
+    message_key: urgency.urgent.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: URG-004
+    status: draft
+    level: URGENT
+    label: Douleur extrême
+    trigger:
+      type: phrases
+      any: [douleur tres forte, douleur atroce, atroce, insupportable, ne supporte plus la douleur]
+    message_key: urgency.urgent.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: URG-005
+    status: draft
+    level: URGENT
+    label: Malaise ou évanouissement
+    trigger:
+      type: phrases
+      any: [evanoui, s est evanoui, s est evanouie, malaise, vertiges forts]
+    message_key: urgency.urgent.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: URG-006
+    status: draft
+    level: URGENT
+    label: Accident ou traumatisme
+    trigger:
+      type: phrases
+      any:
+        - accident
+        - accident de moto
+        - accident de la route
+        - renverse par
+        - percute par
+        - tombe de
+        - chute grave
+        - brulure
+        - fracture
+        - os casse
+        - plaie profonde
+        - blessure grave
+    scenario: accident
+    actions_add: [offer_ambulance_contact]
+    message_key: urgency.urgent.accident
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: URG-007
+    status: draft
+    level: URGENT
+    label: Morsure, piqûre ou ingestion dangereuse
+    trigger:
+      type: phrases
+      any:
+        - morsure de serpent
+        - mordu par un serpent
+        - mordue par un serpent
+        - piqure de scorpion
+        - pique par un scorpion
+        - a avale
+        - empoisonne
+        - intoxique
+        - produit toxique
+    message_key: urgency.urgent.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: URG-008
+    status: draft
+    level: URGENT
+    label: Sang vomi, craché ou dans les selles ou les urines
+    trigger:
+      type: phrases
+      any: [vomit du sang, crache du sang, sang dans les selles, urine du sang]
+    message_key: urgency.urgent.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: URG-009
+    status: draft
+    level: URGENT
+    label: Crainte de mort exprimée
+    trigger:
+      type: phrases
+      any: [il va mourir, elle va mourir, va mourir, je vais mourir, peur de mourir]
+    message_key: urgency.urgent.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: URG-010
+    status: draft
+    level: URGENT
+    label: Idées suicidaires ou auto-agression exprimées
+    trigger:
+      type: phrases
+      any: [me suicider, me tuer, veux mourir, envie de mourir, mettre fin a mes jours]
+    actions_add: [crisis_support, audit_flag]
+    message_key: urgency.selfharm
+    notes: >
+      L'agent ne donne aucune information sur des moyens. Les ressources d'aide affichées
+      doivent être fournies et testées par le partenaire (aucun numéro inventé).
+    clinical_source: null
+    validated_by: null
+    validated_on: null

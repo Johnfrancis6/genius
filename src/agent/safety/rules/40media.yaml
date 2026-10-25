@@ -1,0 +1,97 @@
+# safety/rules/40_media.yaml : vocaux, images, documents, localisation
+version: 1
+rules:
+  - id: MED-001
+    status: draft
+    level: INCERTAIN
+    label: Note vocale en attente de transcription
+    trigger: {type: media, kind: audio, stage: before_transcription}
+    release_when: transcription réussie ET règles de texte (10 à 30) sans résultat -> NORMAL
+    message_key: urgency.uncertain.voice
+    notes: >
+      Applique votre décision "envoi vocal = niveau urgent" jusqu'à la transcription.
+      Le taux de fausses alertes est mesuré dans le mock (réglage : decisions_ouvertes.voice_policy).
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: MED-002
+    status: draft
+    level: INCERTAIN
+    label: Transcription échouée, peu fiable, silence ou bruit seulement
+    trigger: {type: media, kind: audio, stage: after_transcription, condition: failed_or_low_confidence}
+    actions_add: [ask_if_urgent_button]
+    message_key: urgency.uncertain.voice_unreadable
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: MED-003
+    status: draft
+    level: INCERTAIN
+    label: Image classée blessure, sang ou scène d'accident
+    trigger: {type: media, kind: image, classified_as: [injury, blood, accident_scene]}
+    message_key: urgency.uncertain.image
+    notes: "La classification d'image est peu fiable : en cas de doute, on demande une phrase de description."
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: MED-004
+    status: draft
+    level: INCERTAIN
+    label: Image non classée sans texte d'accompagnement
+    trigger: {type: media, kind: image, classified_as: [unknown], text_present: false}
+    message_key: urgency.uncertain.image
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: MED-005
+    status: draft
+    level: NORMAL
+    label: Ordonnance ou photo de médicament
+    trigger: {type: media, kind: image, classified_as: [prescription, medicine]}
+    actions_add: [route_case]
+    route: document_flow
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: MED-006
+    status: draft
+    level: NORMAL
+    priority: high          # priorité de service, pas niveau de sécurité
+    label: Pièce d'identité reçue
+    trigger: {type: media, kind: [image, document], classified_as: [id_document]}
+    actions_add: [id_guard, route_case]
+    route: case_A
+    notes: >
+      À confirmer : vous aviez classé l'envoi d'une pièce d'identité parmi les comportements
+      "urgents". Ici il augmente la PRIORITÉ de traitement (le patient veut agir) sans
+      déclencher l'alerte médicale. Stockage 24 h chiffré, aucun OCR au-delà des champs nécessaires.
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: MED-007
+    status: draft
+    level: NORMAL
+    label: Localisation partagée seule
+    trigger: {type: media, kind: location, text_present: false}
+    actions_add: [route_case]
+    route: ask_need
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: MED-008
+    status: draft
+    level: INCERTAIN
+    label: Format non pris en charge (vidéo, sticker, fichier inconnu)
+    trigger: {type: media, kind: [video, sticker, unsupported]}
+    message_key: urgency.uncertain.unsupported_media
+    notes: Le message demande une phrase de texte et rappelle les numéros d'urgence.
+    clinical_source: null
+    validated_by: null
+    validated_on: null

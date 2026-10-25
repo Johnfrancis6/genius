@@ -1,0 +1,168 @@
+# safety/rules/10_critique.yaml : danger vital probable (niveau CRITIQUE)
+# Tous les brouillons sont à valider par un médecin. Phrases déjà normalisées.
+version: 1
+rules:
+  - id: CRIT-001
+    status: draft
+    level: CRITIQUE
+    label: Respiration arrêtée ou très gênée
+    trigger:
+      type: phrases
+      any:
+        - ne respire plus
+        - ne respire pas
+        - respire plus
+        - arret respiratoire
+        - arrete de respirer
+        - plus de souffle
+        - n arrive plus a respirer
+        - n arrive pas a respirer
+        - etouffe
+        - suffoque
+    message_key: urgency.critical.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: CRIT-002
+    status: draft
+    level: CRITIQUE
+    label: Perte de conscience ou absence de réaction
+    trigger:
+      type: phrases
+      any:
+        - inconscient
+        - inconsciente
+        - ne repond plus
+        - ne reagit plus
+        - ne se reveille pas
+        - ne se reveille plus
+        - perdu connaissance
+        - a perdu connaissance
+    message_key: urgency.critical.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: CRIT-003
+    status: draft
+    level: CRITIQUE
+    label: Convulsions
+    trigger:
+      type: phrases
+      any:
+        - convulse
+        - convulsions
+        - convulsion
+        - yeux revulses
+        - mousse a la bouche
+    message_key: urgency.critical.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: CRIT-004
+    status: draft
+    level: CRITIQUE
+    label: Saignement abondant
+    trigger:
+      type: phrases
+      any:
+        - hemorragie
+        - saigne beaucoup
+        - beaucoup de sang
+        - sang partout
+        - saignement abondant
+        - le sang ne s arrete pas
+        - ne s arrete pas de saigner
+        - perd beaucoup de sang
+    message_key: urgency.critical.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: CRIT-005
+    status: draft
+    level: CRITIQUE
+    label: Douleur thoracique avec signe associé, ou crise cardiaque déclarée
+    trigger:
+      type: any_of_rules
+      alternatives:
+        - type: phrases
+          any: [crise cardiaque, infarctus]
+        - type: all_of
+          groups:
+            - any: [douleur poitrine, mal a la poitrine, oppression poitrine, poitrine serree, douleur au thorax]
+            - any: [bras gauche, machoire, essouffle, sueurs, ne peut plus respirer, malaise, evanoui]
+    scenario: cardiac
+    message_key: urgency.critical.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: CRIT-006
+    status: draft
+    level: CRITIQUE
+    label: Signes évocateurs d'un AVC
+    trigger:
+      type: phrases
+      any:
+        - bouche tordue
+        - visage qui tombe
+        - ne peut plus parler
+        - parle bizarrement
+        - paralyse d un cote
+        - bras ne bouge plus
+        - ne sent plus son bras
+    message_key: urgency.critical.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: CRIT-007
+    status: draft
+    level: CRITIQUE
+    label: Grossesse ou accouchement avec signe de danger
+    trigger:
+      type: all_of
+      groups:
+        - any: [enceinte, femme enceinte, grossesse, accouche, accouchement, contractions]
+        - any: [saigne, sang, perte de sang, convulse, convulsions, vue floue, bebe ne bouge plus, ne bouge plus dans le ventre]
+    scenario: pregnancy
+    message_key: urgency.critical.generic
+    clinical_source: null    # à fournir : signes de danger obstétricaux (protocole national / OMS)
+    validated_by: null
+    validated_on: null
+
+  - id: CRIT-008
+    status: draft
+    level: CRITIQUE
+    label: Naissance imminente ou en cours
+    trigger:
+      type: phrases
+      any:
+        - le bebe sort
+        - la tete du bebe
+        - le bebe arrive maintenant
+        - bebe est ne
+        - elle accouche maintenant
+    scenario: pregnancy
+    message_key: urgency.critical.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: CRIT-009
+    status: draft
+    level: CRITIQUE
+    label: Nourrisson avec signe de danger
+    trigger:
+      type: all_of
+      groups:
+        - any: [bebe, nourrisson, nouveau ne]
+        - any: [ne respire pas, ne respire plus,  ne reagit pas, ne reagit plus, tout mou, convulse]
+    scenario: baby
+    message_key: urgency.critical.generic
+    clinical_source: null
+    validated_by: null
+    validated_on: null

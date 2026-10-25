@@ -1,0 +1,40 @@
+# safety/rules/70_exit.yaml : sortie de l'état d'urgence persistant
+# Principe : une auto-déclaration seule ("je peux me déplacer en moto") ne suffit jamais.
+# Un patient en danger peut très bien dire qu'il peut rouler.
+version: 1
+
+exit_policies:
+  CRITIQUE:
+    self_exit: forbidden
+    allowed_exit:
+      - doctor_marks_resolved          # accusé humain + clôture par le médecin
+      - guided_reevaluation_negative_and_user_confirms   # toutes les questions de danger = non, puis bouton de confirmation
+    min_quiet_minutes_param: parameters.exit.min_quiet_minutes
+  URGENT:
+    self_exit: allowed_with_guided_reevaluation
+    requires:
+      - guided_reevaluation_negative    # questions de danger du groupe concerné toutes négatives
+      - one_user_exit_condition         # voir exit_conditions
+      - user_confirms_with_button
+  INCERTAIN:
+    self_exit: allowed
+    requires:
+      - clarification_answered_without_danger_sign
+
+# Conditions de sortie citées par vous (chacune exige une confirmation par bouton)
+exit_conditions:
+  - {id: EXIT-C1, label: Peut se déplacer avec un engin, intent: can_travel_with_vehicle}
+  - {id: EXIT-C2, label: Cherche plus de détails sur les propositions, intent: asks_proposal_details}
+  - {id: EXIT-C3, label: Ne cherche qu'une pharmacie proche, intent: only_nearby_pharmacy}
+  - {id: EXIT-C4, label: Veut seulement parler à un docteur, intent: only_doctor_conversation}
+  - {id: EXIT-C5, label: Demande si la voie ou la météo est favorable, intent: asks_route_or_weather}
+  - {id: EXIT-C6, label: Cherche un produit précis, intent: asks_specific_product}
+  - {id: EXIT-C7, label: Cherche une opération ou un service précis, intent: asks_specific_service}
+
+blockers:   # empêchent la sortie même si une condition est remplie
+  - nouvelle phrase de danger depuis le début de l'urgence
+  - minimization_detected sans réponse négative aux questions guidées
+  - escalade médecin encore ouverte sans accusé humain (alors maintien et avertissement honnête)
+
+re_entry:
+  rule: toute nouvelle phrase de danger (10 à 30) ou réponse positive à une question de danger ré-active immédiatement l'état

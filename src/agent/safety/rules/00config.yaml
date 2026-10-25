@@ -1,0 +1,88 @@
+# =============================================================================
+# safety/rules/00_config.yaml : paramètres communs du moteur d'urgence
+# Statut : BROUILLON. Aucune règle de ce dossier n'est validée cliniquement.
+# =============================================================================
+version: 1
+document_status: draft
+
+avertissement: >
+  Ces règles sont une base de travail à relire, corriger et valider par un médecin
+  partenaire AVANT tout usage avec de vrais patients. Les signes de danger doivent
+  venir d'une source clinique reconnue (protocole national, OMS) fournie par ce médecin.
+  Les phrases listées sont des brouillons en français : variantes locales, fautes de
+  frappe fréquentes et langues locales (mooré, dioula) restent à ajouter.
+
+# -----------------------------------------------------------------------------
+# Invariants que le moteur doit garantir (chacun a un test dédié)
+# -----------------------------------------------------------------------------
+invariants:
+  - "le niveau le plus grave l'emporte"
+  - "un modificateur (répétition, minimisation, typographie) ne peut qu'AUGMENTER le niveau"
+  - "aucune règle ne baisse un niveau ; seule une sortie validée (70_exit.yaml) le peut"
+  - "une phrase niée (\"il ne saigne pas\") fait passer à INCERTAIN, elle n'est jamais ignorée"
+  - "le moteur n'appelle ni le LLM ni la file conversationnelle (le filet LLM ne fait que monter)"
+  - "en production, toute règle dont status != validated est refusée au chargement"
+  - "aucun numéro d'urgence dans ces fichiers : ils viennent de directory/emergency_numbers (testés par appel avant mise en service)"
+
+levels:
+  order: [NORMAL, INCERTAIN, URGENT, CRITIQUE]
+
+# Actions par défaut selon le niveau (une règle peut en ajouter, pas en retirer)
+level_actions:
+  NORMAL: []
+  INCERTAIN: [notify_emergency_numbers, clarify_guided, pause_other_actions]
+  URGENT: [notify_emergency_numbers, clarify_guided, escalate_doctor, lock_urgency, pause_other_actions]
+  CRITIQUE: [notify_emergency_numbers, escalate_doctor, lock_urgency, clarify_guided, pause_other_actions]
+
+# Décision à confirmer : en INCERTAIN, le médecin est alerté seulement si la clarification
+# révèle un signe de danger ou reste sans réponse après un délai.
+decisions_ouvertes:
+  escalate_on_incertain: conditional   # conditional | never | always
+  voice_policy: pending_until_transcribed   # voir 40_media.yaml
+
+# -----------------------------------------------------------------------------
+# Vocabulaire des actions (implémentées dans safety/engine.py et escalation/)
+# -----------------------------------------------------------------------------
+actions:
+  notify_emergency_numbers: envoie les numéros d'urgence testés, message très court, action d'abord
+  clarify_guided: pose les questions guidées à boutons du groupe indiqué (60_scenarios.yaml)
+  escalate_doctor: démarre la séquence médecin -> accusé humain -> délai -> second canal -> avertissement
+  lock_urgency: "passe l'état d'urgence persistant (sortie : 70_exit.yaml)"
+  pause_other_actions: bloque tout autre parcours tant que l'état n'est pas clarifié
+  offer_ambulance_contact: propose le contact ambulance via un centre de santé
+  ask_if_urgent_button: bouton "Est-ce urgent ?" (oui / non)
+  route_case: oriente vers le cas A, B ou C
+  id_guard: "pièce d'identité reçue : stockage chiffré 24 h si cas A, sinon suppression immédiate + avertissement"
+  refuse_and_offer_doctor: refuse (diagnostic, posologie) et propose le contact d'un professionnel
+  crisis_support: parcours de soutien pour détresse psychique (ressources validées par le partenaire)
+  flag_minimization: marque le message comme minimisé (questions de précision renforcées)
+  audit_flag: journalise l'événement sans contenu
+
+# -----------------------------------------------------------------------------
+# Normalisation appliquée AVANT les règles (les phrases ci-dessous sont déjà normalisées)
+# -----------------------------------------------------------------------------
+normalization:
+  steps:
+    - minuscules
+    - suppression des accents
+    - apostrophes et tirets remplacés par une espace
+    - lettres répétées réduites à 2 maximum ("aidezzzz" -> "aidezz")
+    - ponctuation retirée (sauf pour la détection typographique du modificateur MOD-003)
+  matching: mots entiers sur le texte normalisé
+  fuzzy_max_edit_distance: 1   # tolérance de faute par mot ; à calibrer sur le mock (faux positifs)
+
+# -----------------------------------------------------------------------------
+# Paramètres chiffrés : VALEURS DE DÉPART POUR LE MOCK, pas des recommandations cliniques
+# -----------------------------------------------------------------------------
+parameters:
+  repetition:
+    window_messages: 5
+    min_count: 2
+  escalation:
+    doctor_ack_timeout_s: 120
+    second_channel_ack_timeout_s: 180
+    # ensuite : avertissement honnête à l'utilisateur
+  stt:
+    min_confidence: null        # à calibrer sur le mock
+  exit:
+    min_quiet_minutes: null     # à fixer avec le médecin

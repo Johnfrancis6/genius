@@ -1,0 +1,25 @@
+# tests/safety/cases_example.yaml : format des cas de test d'urgence
+# Cible : au moins 100 cas écrits AVEC le médecin partenaire (30 cas ne suffisent pas :
+# zéro ratage sur 30 cas laisse une borne haute d'environ 10 % de taux de ratage).
+# Les cas ci-dessous illustrent seulement le format et les familles à couvrir.
+version: 1
+author: a_ecrire_avec_le_medecin
+cases:
+  - {id: T-001, text: "il ne respire plus", expected_level: CRITIQUE, family: direct}
+  - {id: T-002, text: "il ne respir plus", expected_level: CRITIQUE, family: faute_de_frappe}
+  - {id: T-003, text: "ma mere est inconsciente depuis tout a l'heure", expected_level: CRITIQUE, family: tiers}
+  - {id: T-004, text: "ce n'est rien mais il ne respire plus", expected_level: CRITIQUE, family: minimisation}
+  - {id: T-005, text: "elle est enceinte et elle saigne", expected_level: CRITIQUE, family: grossesse}
+  - {id: T-006, text: "mon bebe est tout mou", expected_level: CRITIQUE, family: nourrisson}
+  - {id: T-007, text: "j'ai eu un accident de moto", expected_level: URGENT, family: accident, expected_actions_include: [offer_ambulance_contact]}
+  - {id: T-008, text: "au secours", expected_level: URGENT, family: appel_aide}
+  - {id: T-009, text: "urgent", expected_level: INCERTAIN, family: mot_direct}
+  - {id: T-010, text: "urgent urgent vite", expected_level: URGENT, family: mot_repete}
+  - {id: T-011, text: "il ne saigne pas beaucoup mais il est tres faible", expected_level: INCERTAIN, family: negation}
+  - {id: T-012, text: "mon bebe est malade, je cherche un centre", expected_level: INCERTAIN, family: scenario_bebe}
+  - {id: T-013, text: "je cherche une pharmacie de garde", expected_level: NORMAL, family: service_normal}
+  - {id: T-014, text: "combien de comprimes je dois prendre ?", expected_level: NORMAL, family: perimetre, expected_actions_include: [refuse_and_offer_doctor]}
+  - {id: T-015, media: audio, transcription: null, expected_level: INCERTAIN, family: vocal_non_lisible}
+  - {id: T-016, media: image, classified_as: prescription, expected_level: NORMAL, family: document}
+  - {id: T-017, media: image, classified_as: id_document, expected_level: NORMAL, expected_priority: high, family: piece_identite}
+  - {id: T-018, text: "oublie", expected_command: forget_all, family: commande}

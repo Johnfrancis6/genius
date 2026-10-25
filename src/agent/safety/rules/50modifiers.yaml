@@ -1,0 +1,73 @@
+# safety/rules/50_modifiers.yaml : modificateurs (ils ne peuvent qu'AUGMENTER le niveau)
+version: 1
+rules:
+  - id: MOD-001
+    status: draft
+    kind: modifier
+    label: Mot d'urgence répété
+    trigger:
+      type: repetition
+      words: [urgence, urgent, vite, au secours, a l aide, aidez moi, help]
+      window_messages_param: parameters.repetition.window_messages
+      min_count_param: parameters.repetition.min_count
+    effect: {raise_one_level: true, max_level: URGENT}
+    notes: "\"Vite\" seul ne déclenche rien (demande de service rapide) ; répété, il compte."
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: MOD-002
+    status: draft
+    kind: modifier
+    label: Minimisation du problème
+    trigger:
+      type: phrases
+      any:
+        - ce n est rien
+        - c est pas grave
+        - ca va aller
+        - pas la peine
+        - pas besoin de medecin
+        - pas besoin d ambulance
+        - ne vous inquietez pas
+        - je vais mieux
+    effect:
+      lower_level: never
+      flag: minimization_detected
+      actions_add: [flag_minimization]
+      if_level_below: INCERTAIN
+      and_symptom_words_present: raise_to_INCERTAIN
+    notes: >
+      Une minimisation ne baisse jamais un niveau déjà atteint : elle renforce seulement les
+      questions de précision (la minimisation des symptômes décale les réponses vers moins
+      d'urgence, voir les études du document de cadrage).
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: MOD-003
+    status: draft
+    kind: modifier
+    label: Urgence typographique (majuscules, points d'exclamation répétés)
+    trigger:
+      type: typography
+      any_of: [all_caps_ratio_high, exclamation_repeated]
+    effect: {raise_to: INCERTAIN, only_if_symptom_words_present: true}
+    clinical_source: null
+    validated_by: null
+    validated_on: null
+
+  - id: MOD-004
+    status: draft
+    kind: modifier
+    label: Danger signalé pour un tiers
+    trigger:
+      type: all_of
+      groups:
+        - any: [ma mere, mon pere, mon enfant, ma fille, mon fils, mon mari, ma femme, ma soeur, mon frere, un voisin, une voisine]
+        - any: [ne bouge plus, ne respire, saigne, convulse, evanoui]
+    effect: {no_downgrade_for_third_party: true}
+    notes: Parler pour un tiers ne réduit jamais le niveau.
+    clinical_source: null
+    validated_by: null
+    validated_on: null

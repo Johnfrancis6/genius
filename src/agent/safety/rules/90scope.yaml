@@ -1,0 +1,74 @@
+# safety/rules/90_scope.yaml : périmètre de l'agent (information et orientation uniquement)
+# Ces règles ne sont pas des règles de danger : niveau NORMAL, action de refus.
+version: 1
+rules:
+  - id: SCOPE-001
+    status: draft
+    level: NORMAL
+    label: Demande de diagnostic
+    trigger:
+      type: phrases
+      any: [qu est ce que j ai, c est quoi ma maladie, quelle maladie, est ce que j ai le paludisme, diagnostic, de quoi souffre]
+    actions_add: [refuse_and_offer_doctor]
+    message_key: scope.no_diagnosis
+    notes: Combinée avec des symptômes, les règles de danger (10 à 30) s'appliquent avant celle-ci.
+    clinical_source: null
+    validated_by: null
+
+  - id: SCOPE-002
+    status: draft
+    level: NORMAL
+    label: Demande de posologie ou de dose
+    trigger:
+      type: phrases
+      any: [combien de comprimes, quelle dose, combien de fois par jour, posologie, combien de gouttes, combien de sirop]
+    actions_add: [refuse_and_offer_doctor]
+    message_key: scope.no_dosage
+    notes: >
+      Si une ordonnance a été lue, l'agent peut seulement répéter ce qu'elle indique
+      (avec avertissement), jamais inventer ou calculer une dose.
+    clinical_source: null
+    validated_by: null
+
+  - id: SCOPE-003
+    status: draft
+    level: NORMAL
+    label: Demande de conseil de traitement
+    trigger:
+      type: phrases
+      any: [que dois je prendre, quel medicament pour, quel traitement pour, un remede pour, que faire pour guerir]
+    actions_add: [refuse_and_offer_doctor]
+    message_key: scope.no_treatment_advice
+    notes: "Une recherche de produit précis (\"avez-vous X ?\") n'est pas un conseil : elle passe par product_lookup."
+    clinical_source: null
+    validated_by: null
+
+  - id: SCOPE-004
+    status: draft
+    level: NORMAL
+    label: Hors périmètre (règle Meta sur les chatbots généralistes)
+    trigger:
+      type: phrases
+      any: [raconte moi une blague, recette de, resultat du match, ecris moi un code, aide moi pour mes devoirs, politique]
+    actions_add: [route_case]
+    route: case_C
+    message_key: scope.out_of_scope
+    clinical_source: null
+    validated_by: null
+
+  - id: SCOPE-005
+    status: draft
+    level: NORMAL
+    label: Tentative de contourner les règles de l'agent
+    trigger:
+      type: phrases
+      any: [ignore tes instructions, ignore les regles, tu es maintenant, oublie tes regles, oublie tes instructions]
+    actions_add: [audit_flag, route_case]
+    route: case_C
+    message_key: scope.out_of_scope
+    notes: >
+      Attention : "oublie" est aussi la commande de suppression des données. Elle doit être
+      reconnue UNIQUEMENT par correspondance exacte ("oublie", "oublie mes donnees") avant
+      cette règle, pour éviter toute confusion.
+    clinical_source: null
+    validated_by: null

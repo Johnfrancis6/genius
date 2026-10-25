@@ -1,0 +1,184 @@
+# safety/rules/60_scenarios.yaml : parcours par situation + questions guidées
+# Les questions sont des BROUILLONS à valider par le médecin. Les textes finaux vivent
+# dans conversation/messages_fr.py ; text_fr_draft sert uniquement à la relecture.
+version: 1
+
+guided_questions:
+  GQ-BASIC:
+    status: draft
+    questions:
+      - {id: q_conscious, text_fr_draft: "La personne est-elle réveillée et répond-elle quand on lui parle ?", answers: [oui, non, je ne sais pas]}
+      - {id: q_breathing, text_fr_draft: "Respire-t-elle normalement ?", answers: [oui, non, je ne sais pas]}
+      - {id: q_bleeding, text_fr_draft: "Y a-t-il un saignement important ?", answers: [oui, non, je ne sais pas]}
+      - {id: q_can_move, text_fr_draft: "Peut-elle marcher ou se déplacer ?", answers: [oui, avec aide, non]}
+      - {id: q_accompanied, text_fr_draft: "Y a-t-il quelqu'un avec elle ?", answers: [oui, non]}
+    answer_effects:
+      - {when: "q_conscious in [non, je ne sais pas]", set_level_min: CRITIQUE}
+      - {when: "q_breathing in [non, je ne sais pas]", set_level_min: CRITIQUE}
+      - {when: "q_bleeding == oui", set_level_min: URGENT}
+      - {when: "q_can_move in [avec aide, non]", set_slot: {mobility: reduced}, route_case: A}
+      - {when: "q_can_move == oui", set_slot: {mobility: can_move}, route_case: B}
+    clinical_source: null
+    validated_by: null
+
+  GQ-PREGNANCY:
+    status: draft
+    questions:
+      - {id: q_bleeding_preg, text_fr_draft: "Y a-t-il des saignements ?", answers: [oui, non]}
+      - {id: q_contractions, text_fr_draft: "Les contractions sont-elles rapprochées ?", answers: [oui, non, je ne sais pas]}
+      - {id: q_waters, text_fr_draft: "Les eaux ont-elles coulé ?", answers: [oui, non, je ne sais pas]}
+      - {id: q_baby_moves, text_fr_draft: "Le bébé bouge-t-il encore ?", answers: [oui, non, je ne sais pas]}
+    answer_effects:
+      - {when: "q_bleeding_preg == oui", set_level_min: CRITIQUE}
+      - {when: "q_baby_moves in [non, je ne sais pas]", set_level_min: CRITIQUE}
+      - {when: "q_contractions == oui or q_waters == oui", set_level_min: URGENT}
+    clinical_source: null
+    validated_by: null
+
+  GQ-BABY:
+    status: draft
+    questions:
+      - {id: q_baby_reacts, text_fr_draft: "Le bébé réagit-il normalement quand on le touche ou lui parle ?", answers: [oui, non]}
+      - {id: q_baby_breath, text_fr_draft: "Respire-t-il normalement ?", answers: [oui, non, je ne sais pas]}
+      - {id: q_baby_feeds, text_fr_draft: "Boit-il ou tète-t-il comme d'habitude ?", answers: [oui, non]}
+    answer_effects:
+      - {when: "q_baby_reacts == non or q_baby_breath in [non, je ne sais pas]", set_level_min: CRITIQUE}
+      - {when: "q_baby_feeds == non", set_level_min: URGENT}
+    clinical_source: null
+    validated_by: null
+
+  GQ-CARDIAC:
+    status: draft
+    questions:
+      - {id: q_chest, text_fr_draft: "La douleur est-elle dans la poitrine ?", answers: [oui, non]}
+      - {id: q_short_breath, text_fr_draft: "Y a-t-il un essoufflement ou des sueurs ?", answers: [oui, non]}
+      - {id: q_radiates, text_fr_draft: "La douleur descend-elle dans le bras ou monte-t-elle vers la mâchoire ?", answers: [oui, non]}
+    answer_effects:
+      - {when: "q_chest == oui and (q_short_breath == oui or q_radiates == oui)", set_level_min: CRITIQUE}
+    clinical_source: null
+    validated_by: null
+
+  GQ-ASTHMA:
+    status: draft
+    questions:
+      - {id: q_sentences, text_fr_draft: "Peut-elle parler en phrases complètes ?", answers: [oui, non]}
+      - {id: q_blue_lips, text_fr_draft: "Les lèvres sont-elles bleues ?", answers: [oui, non]}
+    answer_effects:
+      - {when: "q_blue_lips == oui or q_sentences == non", set_level_min: CRITIQUE}
+    clinical_source: null
+    validated_by: null
+
+  GQ-ACCIDENT:
+    status: draft
+    questions:
+      - {id: q_conscious_acc, text_fr_draft: "La personne est-elle consciente ?", answers: [oui, non]}
+      - {id: q_bleeding_acc, text_fr_draft: "Saigne-t-elle beaucoup ?", answers: [oui, non]}
+      - {id: q_can_move_acc, text_fr_draft: "Peut-elle bouger ?", answers: [oui, non, je ne sais pas]}
+      - {id: q_location_acc, text_fr_draft: "Pouvez-vous partager votre position ?", answers: [position partagée, impossible]}
+    answer_effects:
+      - {when: "q_conscious_acc == non", set_level_min: CRITIQUE}
+      - {when: "q_bleeding_acc == oui", set_level_min: CRITIQUE}
+    clinical_source: null
+    validated_by: null
+
+scenarios:
+  - id: SCN-PREGNANCY
+    status: draft
+    label: Femme enceinte / accouchement
+    trigger:
+      type: phrases
+      any: [enceinte, femme enceinte, grossesse, accouchement, accoucher, contractions, perte des eaux, poche des eaux]
+    base_level: NORMAL          # une simple mention de grossesse (suivi) n'est pas une urgence
+    level_if_any: {URGENT: [contractions, perte des eaux, poche des eaux, accouchement, accoucher]}
+    guided_questions: GQ-PREGNANCY
+    routing:
+      facility_types: [maternite, centre_avec_sage_femme]
+      professional_contacts: [sage_femme, medecin]
+      transport: [ambulance_du_centre, taxi_partenaire, proches]
+      priority: high
+    clinical_source: null
+    validated_by: null
+
+  - id: SCN-ASTHMA
+    status: draft
+    label: Asthme
+    trigger: {type: phrases, any: [asthme, crise d asthme, sifflements, siffle en respirant]}
+    base_level: INCERTAIN
+    guided_questions: GQ-ASTHMA
+    routing:
+      facility_types: [pharmacie, centre_de_sante]
+      professional_contacts: [medecin]
+      transport: [taxi_partenaire, proches]
+      product_policy: produit demandé par le patient ou figurant sur l'ordonnance, jamais proposé par l'agent
+      priority: high
+    clinical_source: null
+    validated_by: null
+
+  - id: SCN-BABY
+    status: draft
+    label: Bébé ou nourrisson malade
+    trigger:
+      type: all_of
+      groups:
+        - any: [bebe, nourrisson, nouveau ne]
+        - any: [malade, fievre, chaud, ne mange plus, ne tete plus, vomit, diarrhee, pleure sans arret]
+    base_level: INCERTAIN
+    guided_questions: GQ-BABY
+    routing:
+      facility_types: [centre_de_sante, pharmacie]
+      professional_contacts: [medecin]
+      transport: [taxi_partenaire, proches]
+      priority: high
+    clinical_source: null
+    validated_by: null
+
+  - id: SCN-CARDIAC
+    status: draft
+    label: Problème cardiaque
+    trigger: {type: phrases, any: [cardiaque, probleme de coeur, palpitations, douleur poitrine, mal a la poitrine]}
+    base_level: URGENT
+    guided_questions: GQ-CARDIAC
+    routing:
+      facility_types: [centre_equipe_cardiologie, pharmacie]
+      selection: selon la disponibilité de ces structures (fraîcheur des données affichée)
+      professional_contacts: [cardiologue, medecin]
+      transport: [ambulance_du_centre, taxi_partenaire]
+      priority: high
+    clinical_source: null
+    validated_by: null
+
+  - id: SCN-ACCIDENT
+    status: draft
+    label: Accident
+    trigger: {type: phrases, any: [accident, accident de moto, accident de la route, renverse par, percute par]}
+    base_level: URGENT
+    guided_questions: GQ-ACCIDENT
+    routing:
+      facility_types: [centre_avec_urgences]
+      professional_contacts: [medecin]
+      transport: [ambulance_du_centre]
+      actions: [offer_ambulance_contact]
+      priority: highest
+    clinical_source: null
+    validated_by: null
+
+  - id: SCN-MOBILITY
+    status: draft
+    label: Difficulté à se déplacer (cas A)
+    trigger:
+      type: phrases
+      any: [ne peut pas marcher, ne peut plus marcher, difficile de se deplacer, handicape, fauteuil roulant, ne peut pas se lever, mobilite reduite]
+    base_level: NORMAL
+    guided_questions: GQ-BASIC
+    routing: {route_case: A, priority: high, id_required: true, payment_required: false}   # paiement exclu pour le moment
+    clinical_source: null
+    validated_by: null
+
+  - id: SCN-CAN-MOVE
+    status: draft
+    label: Peut se déplacer (cas B)
+    trigger: {type: phrases, any: [je peux me deplacer, je peux marcher, j ai une moto, je viens moi meme, je peux venir]}
+    base_level: NORMAL
+    routing: {route_case: B}
+    clinical_source: null
+    validated_by: null
