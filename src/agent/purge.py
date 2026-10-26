@@ -1,9 +1,12 @@
 """Purge des données expirées."""
+
 import asyncio
 import logging
+from typing import Any, cast
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func
+from sqlalchemy.engine import CursorResult
 
 from agent.db import session_scope
 from agent.models import ExtractionResult, Image, Message, VoiceNote
@@ -19,8 +22,13 @@ async def purge_expired() -> dict[str, int]:
     counts: dict[str, int] = {}
     for model in _EXPIRING_MODELS:
         async with session_scope() as session:
-            result = await session.execute(
-                sa_delete(model).where(model.expires_at <= func.now().execution_options(synchronize_session=False))
+            result = cast(
+                "CursorResult[Any]",
+                await session.execute(
+                    sa_delete(model)
+                    .where(model.expires_at <= func.now())
+                    .execution_options(synchronize_session=False)
+                ),
             )
             counts[model.__tablename__] = result.rowcount
     return counts

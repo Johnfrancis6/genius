@@ -22,4 +22,4 @@ async def lifespan(app: FastAPI):
         await dispose_engine()
 
 
-app = FastAPI(lifespan=lifespan)  # à supprimer si elle existe déjà plus bas
+app = FastAPI(lifespan=lifespan)

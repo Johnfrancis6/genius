@@ -65,6 +65,3 @@ async def dispose_engine() -> None:
     finally:
         get_sessionmaker.cache_clear()
         get_engine.cache_clear()
-        
-        
-        

@@ -1,4 +1,3 @@
-
 from agent.core.prompt import ORDONNANCE_PROMPT, PIECE_IDENTITE_PROMPT
 from agent.modules.images.image_data import (
     Accepte,

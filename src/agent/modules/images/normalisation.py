@@ -63,7 +63,6 @@ def valider_ordonnance(brut: str) -> Resultat[Ordonnance_output]:
     return Accepte(out)
 
 
-
 def valider_piece_identite(brut: str) -> Resultat[IdCardFields]:
     out = parse_modele(brut, IdCardFields)
     return out if isinstance(out, Reject) else Accepte(out)

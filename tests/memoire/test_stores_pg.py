@@ -204,13 +204,12 @@ async def test_image_delete_is_idempotent():
     await store.delete(user, str(uuid.uuid4()))  # inconnue : sans erreur
 
 
-async def test_image_delete_leaves_expired_rows_to_the_purge():
+async def test_image_delete_removes_expired_rows():
     store, user = PgImageStore(), await make_user()
     image_id = await store.put(user, PNG, "image/png")
     await expire(Image, image_id)
     await store.delete(user, image_id)
-    assert await count(Image) == 1
-
+    assert await count(Image) == 0
 
 async def test_image_put_rejects_unknown_mime_type():
     store, user = PgImageStore(), await make_user()

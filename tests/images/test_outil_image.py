@@ -78,7 +78,7 @@ async def test_exception_interne(magasin, extracteurs, state):
     cmd = await appeler(fabriquer(images, resultats, FakeVLM(classif()), extracteurs), state)
     assert cmd.update["image_status"] == m.Status.TECHNICAL_ERROR.value
     assert cmd.update["image_result_id"] is None
-    assert images.supprimees == [] or images.supprimees == [("u1", "img1")]
+    assert images.supprimees == [("u1", "img1")]
 
 
 async def test_l_image_est_supprimee_meme_apres_une_erreur(resultats, extracteurs, state):

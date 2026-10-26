@@ -32,9 +32,7 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     phone_hmac: Mapped[str] = mapped_column(String(64), unique=True)
     phone_enc: Mapped[bytes] = mapped_column(LargeBinary)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -53,10 +51,18 @@ class Message(Base):
     direction: Mapped[str] = mapped_column(String(8))
     msg_type: Mapped[str] = mapped_column(String(16))
     content_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class ConversationStateRow(Base):
+    __tablename__ = "conversation_states"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    state_enc: Mapped[bytes] = mapped_column(LargeBinary)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Image(Base):
@@ -68,9 +74,7 @@ class Image(Base):
     )
     data_enc: Mapped[bytes] = mapped_column(LargeBinary)
     mime_type: Mapped[str] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
@@ -83,9 +87,7 @@ class ExtractionResult(Base):
     )
     image_type: Mapped[str] = mapped_column(String(32))
     payload_enc: Mapped[bytes] = mapped_column(LargeBinary)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
@@ -104,7 +106,5 @@ class VoiceNote(Base):
     audio_enc: Mapped[bytes] = mapped_column(LargeBinary)
     language: Mapped[str] = mapped_column(String(8), default="fr", server_default="fr")
     stt_model: Mapped[str | None] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

@@ -2,10 +2,10 @@
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import asdict, dataclass, field, is_dataclass
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Any
 
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import InjectedToolCallId, tool
@@ -27,6 +27,8 @@ TIMEOUT_S = 60
 logger = logging.getLogger(__name__)
 
 TYPES_ATTENDUS = frozenset({"ordonnance", "piece_identite"})
+
+
 class Status(StrEnum):
     NO_IMAGE = "pas_d_image"
     EXTRACTED = "extrait"
@@ -59,9 +61,7 @@ async def image_analysis(
             return await _analyse(image, expected_type, appel, extracteurs)
     except TimeoutError:
         logger.warning("Analyse image : timeout après %ds", TIMEOUT_S)
-        return AnalyseResult(
-            Status.TECHNICAL_ERROR, reason=ReasonRejet.ERREUR_FOURNISSEUR
-        )
+        return AnalyseResult(Status.TECHNICAL_ERROR, reason=ReasonRejet.ERREUR_FOURNISSEUR)
 
 
 async def _analyse(
@@ -86,9 +86,7 @@ async def _analyse(
             Status.EXPECTED_TYPE, type_expected=expected_type, type_detected=cl.type
         )
     if cl.type == "autre":
-        return AnalyseResult(
-            Status.OTHER, type_detected="autre", description=cl.description
-        )
+        return AnalyseResult(Status.OTHER, type_detected="autre", description=cl.description)
     if cl.type == "piece_identite" and expected_type is None:
         return AnalyseResult(
             Status.TYPE_TO_CONFIRM, type_detected=cl.type, description=cl.description
@@ -100,6 +98,8 @@ async def _analyse(
     result = await extracteur(image, appel)
 
     if isinstance(result, Reject):
+        if result.reason == ReasonRejet.SIGNE_MEDICAL:
+            return AnalyseResult(Status.MEDICAL_SIGN, type_detected=cl.type)
         return AnalyseResult(
             Status.TECHNICAL_ERROR,
             type_detected=cl.type,
@@ -112,9 +112,8 @@ async def _analyse(
 # ==========================
 #  Implémentation de l'outil
 # ==========================
-
 MESSAGES: dict[Status, str] = {
-        Status.NO_IMAGE: "Aucune image en attente. Demande au patient de l'envoyer.",
+    Status.NO_IMAGE: "Aucune image en attente. Demande au patient de l'envoyer.",
     Status.EXTRACTED: "Image lue et enregistrée. Ne répète pas son contenu.",
     Status.IMAGE_TO_RESEND: "Image inutilisable. Demande au patient de renvoyer une photo nette, bien éclairée et entière.",
     Status.MEDICAL_SIGN: "Image non analysée. Ne la décris pas ; oriente le patient vers un professionnel de santé.",
@@ -134,6 +133,66 @@ def _to_payload(data: object) -> dict:
     raise TypeError(f"extraction non sérialisable : {type(data).__name__}")
 
 
+def _texte(result: AnalyseResult) -> str:
+    if result.status == Status.EXPECTED_TYPE:
+        return (
+            f"Le patient devait envoyer : {result.type_expected}. "
+            f"L'image reçue semble être : {result.type_detected}. "
+            "Clarifie avec lui sans rien lire."
+        )
+    return MESSAGES[result.status]
+
+
+async def analyser_image_en_attente(
+    state: Mapping[str, Any],
+    images: PgImageStore,
+    resultats: ExtractionStore,
+    appel: Call_VLM,
+    extracteurs: dict[TypeImage, Extracteur],
+) -> dict[str, Any]:
+    """Analyse l'image en attente. Ne touche pas à urgency_level (nœud traiter_image)."""
+    user_id = state.get("user_id")
+    image_id = state.get("pending_image_id")
+    expected = state.get("expected_image_type")
+    if expected not in TYPES_ATTENDUS:
+        expected = None
+    reference = None
+    if not (user_id and image_id):
+        result = AnalyseResult(Status.NO_IMAGE)
+    else:
+        result = AnalyseResult(Status.TECHNICAL_ERROR, reason=ReasonRejet.IMAGE_INVALIDE)
+    try:
+        if user_id and image_id:
+            image = await images.get(user_id, image_id)
+            if image is not None:
+                result = await image_analysis(image, expected, appel, extracteurs)
+                if result.status == Status.EXTRACTED:
+                    reference = await resultats.put(
+                        user_id,
+                        str(result.type_detected),
+                        _to_payload(result.data),
+                    )
+    except Exception as e:
+        logger.warning("Analyse image échouée : %s", type(e).__name__)
+        reference = None
+        result = AnalyseResult(Status.TECHNICAL_ERROR, reason=ReasonRejet.ERREUR_FOURNISSEUR)
+    finally:
+        if user_id and image_id:
+            try:
+                await images.delete(user_id, image_id)
+            except Exception as e:
+                # Sans gravité : purge_expired supprime l'image à 15 min.
+                logger.warning("Suppression de l'image échouée : %s", type(e).__name__)
+
+    return {
+        "image_status": result.status.value,
+        "image_type_detected": result.type_detected,
+        "image_result_id": reference,
+        "pending_image_id": None,
+        "image_instruction": _texte(result),
+    }
+
+
 def creer_outil_image(
     images: PgImageStore,
     resultats: ExtractionStore,
@@ -146,66 +205,9 @@ def creer_outil_image(
         tool_call_id: Annotated[str, InjectedToolCallId],
     ) -> Command:
         """Analyse l'image que le patient vient d'envoyer. Aucun argument."""
-        user_id = state.get("user_id")
-        image_id = state.get("pending_image_id")
-        expected = state.get("expected_image_type")
-        if expected not in TYPES_ATTENDUS:
-            expected = None
-        reference = None
-        if not (user_id  and image_id):
-            result = AnalyseResult(Status.NO_IMAGE)
-        else:
-            result = AnalyseResult(
-                Status.TECHNICAL_ERROR, reason=ReasonRejet.IMAGE_INVALIDE
-            )
-        try:
-            if user_id and image_id:
-                image = await images.get(user_id, image_id)
-                if image is not None:
-                    result = await image_analysis(
-                        image, expected, appel, extracteurs
-                    )
-                    if result.status == Status.EXTRACTED:
-                        reference = await resultats.put(
-                            user_id,
-                            str(result.type_detected),
-                            _to_payload(result.data),
-                        )
-        except Exception as e:
-            logger.warning("Analyse image échouée : %s", type(e).__name__)
-            result = AnalyseResult(
-                Status.TECHNICAL_ERROR, reason=ReasonRejet.ERREUR_FOURNISSEUR
-            )
-        finally:
-            if user_id and image_id:
-                try:
-                    await images.delete(user_id, image_id)
-                except Exception as e:
-                    # Sans gravité : purge_expired supprime l'image à 15 min.
-                    logger.warning(
-                        "Suppression de l'image échouée : %s", type(e).__name__
-                    )
-
-        return Command(
-            update={
-                "image_status": result.status.value,
-                "image_type_detected": result.type_detected,
-                "image_result_id": reference,
-                "pending_image_id": None,
-                "messages": [
-                    ToolMessage(content=_texte(result), tool_call_id=tool_call_id)
-                ],
-            }
-        )
+        update = await analyser_image_en_attente(state, images, resultats, appel, extracteurs)
+        instruction = update.pop("image_instruction")
+        update["messages"] = [ToolMessage(content=instruction, tool_call_id=tool_call_id)]
+        return Command(update=update)
 
     return analyser_image_recue
-
-
-def _texte(result: AnalyseResult) -> str:
-    if result.status == Status.EXPECTED_TYPE:
-        return (
-            f"Le patient devait envoyer : {result.type_expected}. "
-            f"L'image reçue semble être : {result.type_detected}. "
-            "Clarifie avec lui sans rien lire."
-        )
-    return MESSAGES[result.status]

@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     GOOGLE_PLACES_API_KEY: str | None = None
     OPEN_METEO_API_KEY: str | None = None
 
+    # Urgences
+    EMERGENCY_NUMBERS: list[str] = []
+
     # RAG
     top_k: int = 3
 

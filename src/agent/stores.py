@@ -1,13 +1,17 @@
 """Stores Postgres."""
+
 import json
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from agent.conversation.state import PERSISTED_KEYS
 from agent.db import session_scope
 from agent.memoire.crypto import (
     decrypt,
@@ -17,7 +21,7 @@ from agent.memoire.crypto import (
     normalize_phone,
     phone_hmac,
 )
-from agent.models import ExtractionResult, Image, Message, User
+from agent.models import ConversationStateRow, ExtractionResult, Image, Message, User
 
 MESSAGE_TTL = timedelta(days=7)
 IMAGE_TTL = timedelta(minutes=15)
@@ -46,9 +50,7 @@ async def get_or_create_user(phone: str) -> uuid.UUID:
         ).scalar_one_or_none()
         if user_id is None:
             user_id = (
-                await session.execute(
-                    select(User.id).where(User.phone_hmac == phone_key)
-                )
+                await session.execute(select(User.id).where(User.phone_hmac == phone_key))
             ).scalar_one()
         await session.execute(
             update(User).where(User.id == user_id).values(last_seen_at=func.now())
@@ -96,7 +98,7 @@ class PgImageStore:
                 sa_delete(Image).where(
                     Image.user_id == user_id,
                     Image.id == image_uuid,
-                    Image.expires_at > func.now(),
+                    # Image.expires_at > func.now(),
                 )
             )
 
@@ -151,7 +153,7 @@ class MessageStore:
         text: str | None,
         inbound_id: str | None = None,
     ) -> bool:
-        
+        """Message store interface"""
         user_id = to_uuid(user_key)
         content_enc = encrypt_text(text) if text is not None else None
         async with session_scope() as session:
@@ -204,8 +206,51 @@ async def forget_user(user_key: str) -> bool:
     user_id = to_uuid(user_key)
     async with session_scope() as session:
         deleted_id = (
-            await session.execute(
-                sa_delete(User).where(User.id == user_id).returning(User.id)
-            )
+            await session.execute(sa_delete(User).where(User.id == user_id).returning(User.id))
         ).scalar_one_or_none()
     return deleted_id is not None
+
+
+class ConversationStateStore:
+    """État du clarificateur entre deux tours : une ligne par utilisateur, chiffrée."""
+
+    async def load(self, user_key: str) -> dict[str, Any]:
+        """État sauvegardé, ou {} s'il n'y en a pas."""
+        user_id = to_uuid(user_key)
+        async with session_scope() as session:
+            state_enc = (
+                await session.execute(
+                    select(ConversationStateRow.state_enc).where(
+                        ConversationStateRow.user_id == user_id
+                    )
+                )
+            ).scalar_one_or_none()
+        if state_enc is None:
+            return {}
+        data = json.loads(decrypt_text(state_enc))
+        return {k: v for k, v in data.items() if k in PERSISTED_KEYS or k == "intent"}
+
+    async def save(self, user_key: str, state: Mapping[str, Any]) -> None:
+        """Remplace l'état sauvegardé par la liste blanche extraite de `state`."""
+        user_id = to_uuid(user_key)
+        data = {k: v for k, v in state.items() if k in PERSISTED_KEYS}
+        if state.get("awaiting"):
+            data["intent"] = state.get("intent", "unknown")
+        state_enc = encrypt_text(json.dumps(data, ensure_ascii=False))
+        async with session_scope() as session:
+            await session.execute(
+                pg_insert(ConversationStateRow)
+                .values(user_id=user_id, state_enc=state_enc)
+                .on_conflict_do_update(
+                    index_elements=["user_id"],
+                    set_={"state_enc": state_enc, "updated_at": func.now()},
+                )
+            )
+
+    async def clear(self, user_key: str) -> None:
+        """Supprime la ligne de l'utilisateur (sans toucher à `users`)."""
+        user_id = to_uuid(user_key)
+        async with session_scope() as session:
+            await session.execute(
+                sa_delete(ConversationStateRow).where(ConversationStateRow.user_id == user_id)
+            )
