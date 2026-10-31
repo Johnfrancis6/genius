@@ -44,6 +44,13 @@ def _purge_tasks() -> list[asyncio.Task]:
     ]
 
 
+@pytest.fixture(autouse=True)
+def numeros_urgence(monkeypatch):
+    monkeypatch.setenv("EMERGENCY_NUMBERS", '["NUM-TEST-1"]')
+    _clear_caches()
+    yield
+    _clear_caches() # avant la restauration de l'environnement par monkeypatch
+
 @pytest.fixture
 def purge_calls(monkeypatch) -> list[int]:
     calls: list[int] = []

@@ -420,6 +420,7 @@ async def test_purge_expired_deletes_only_expired_rows():
         "images": 1,
         "extraction_results": 1,
         "voice_notes": 1,
+        "conversation_states": 0,
     }
     assert await count(Message) == 2
     assert await count(Image) == 1

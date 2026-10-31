@@ -15,8 +15,11 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from agent.conversation.replies import render_reply
+from agent.conversation.meny import CALLBACK_AUTRE, MENU_PAR_TITRE, LigneMenu
+from agent.conversation.replies import render_reply, texte_localisation
 from agent.conversation.state import (
     Awaiting,
     ConversationState,
@@ -32,6 +35,8 @@ from agent.modules.images.image_tool import (
     Status,
     analyser_image_en_attente,
 )
+from agent.modules.lieux.recherche import Statut, chercher_lieux
+from agent.modules.lieux.rendu import rendre_recherche
 from agent.safety.evaluation import evaluer_urgence
 from agent.safety.levels import Level, raise_only, urgency_from_level, worst
 from agent.stores import ExtractionStore, MessageStore, PgImageStore
@@ -147,16 +152,74 @@ async def _classer(messages: MessageStore, state: ConversationState) -> Intent:
 def _search_neuf(state: ConversationState) -> dict[str, Any]:
     """Nouvelle demande : localisation vide, sauf la position envoyée dans ce tour."""
     if state["msg_type"] == "location":
-        return {k: v for k, v in state["search"].items() if k in ("lat", "lng")}
+        return {
+            k: v for k, v in state["search"].items() if k in ("lat", "lng", "place_name", "address")
+        }
     return {}
 
+ATTENTE_VIDE: dict[str, Any] = {
+    "awaiting": None,
+    "awaiting_since": None,
+    "awaiting_detail": None,
+    "step": "start",
+}
 
+
+async def _recents(messages: MessageStore, state: ConversationState, limit: int) -> list[Any]:
+    try:
+        return await messages.recent(state["user_id"], limit=limit)
+    except Exception as e:
+        logger.warning("route : lecture des messages échouée : %s", type(e).__name__)
+        return []
+
+
+def _afficher_menu(premier: bool) -> dict[str, Any]:
+    return {
+        "reply_key": "menu_accueil" if premier else "menu_rappel",
+        "step": "menu",
+        "awaiting": "choice",
+        "awaiting_since": datetime.now(UTC).isoformat(),
+        "awaiting_detail": "menu",
+    }
+
+
+def _appliquer_ligne(state: ConversationState, ligne: LigneMenu) -> dict[str, Any]:
+    if ligne.callback == CALLBACK_AUTRE:
+        return {"intent": "unknown", "reply_key": "menu_autre", "step": "start"}
+    search = _search_neuf(state)
+    if ligne.kind:
+        search = {**search, "kind": ligne.kind}
+    return {"intent": ligne.intent, "step": "start", "search": search}
 def creer_noeud_route(messages: MessageStore) -> Noeud:
     async def route(state: ConversationState) -> dict[str, Any]:
-        # awaiting actif : l'intent persisté est conservé, sans appel LLM
-        intent: Intent = state["intent"] if state["awaiting"] else await _classer(messages, state)
-        maj: dict[str, Any] = {"intent": intent}
-        if intent == "out_of_scope":
+        recents = await _recents(messages, state, 2)
+        dernier = recents[-1] if recents and recents[-1].direction == "in" else None
+        texte = (dernier.text or "") if dernier is not None else ""
+        # Premier message : seule ligne en base = le message en cours, et c'est du texte.
+        premier = len(recents) == 1 and dernier is not None and state["msg_type"] == "text"
+        maj: dict[str, Any] = {}
+        awaiting = state["awaiting"]
+
+        # Réponse au menu : titre exact d'abord, sinon texte libre (classé plus bas).
+        if awaiting and state["awaiting_detail"] == "menu":
+            maj |= ATTENTE_VIDE
+            awaiting = None
+            ligne = MENU_PAR_TITRE.get(texte.strip().casefold())
+            if ligne is not None:
+                return maj | _appliquer_ligne(state, ligne)
+
+        intent: Intent
+        if awaiting:
+            intent = state["intent"]  # awaiting actif : intent persisté, sans appel LLM
+        elif premier and not _est_sobre(state):
+            intent = "menu"
+        else:
+            intent = await _classer(messages, state)
+        maj["intent"] = intent
+
+        if intent == "menu" and not _est_sobre(state):
+            maj |= _afficher_menu(premier)
+        elif intent == "out_of_scope":
             maj["reply_key"] = "hors_perimetre"
         elif intent == "human_help":
             maj["reply_key"] = "aide_humaine"
@@ -168,24 +231,50 @@ def creer_noeud_route(messages: MessageStore) -> Noeud:
 
     return route
 
-
-def apres_route(state: ConversationState) -> Literal["fin", "clarificateur", "genius"]:
-    """Arête après route : fin, clarificateur (search/transport non terminés) ou genius."""
+def apres_route(state: ConversationState) -> Literal["fin", "clarificateur", "lieux", "genius"]:
+    """Arête après route : fin, clarificateur (search/transport non terminés), lieux ou genius."""
     if state["reply_key"] or state["reply_text"]:
         return "fin"
     if state["intent"] in INTENTS_A_CLARIFIER and state["step"] != "answered":
         return "clarificateur"
+    if state["intent"] == "search":
+        return "lieux"
     return "genius"
 
+
+def apres_clarificateur(state: ConversationState) -> Literal["lieux", "genius", "fin"]:
+    """Même règle de fin que suite_ou_fin ; ensuite lieux pour search, genius sinon."""
+    if suite_ou_fin(state) == "fin":
+        return "fin"
+    return "lieux" if state["intent"] == "search" else "genius"
+
+
+def _manquants(connu: Mapping[str, Any], identite: bool, intent: str) -> list[Item]:
+    s = connu["search"]
+    localisation_connue = bool(s.get("quartier") or ("lat" in s and "lng" in s))
+    manquants: list[Item] = []
+    if intent == "search" and not s.get("kind"):
+        manquants.append("kind")
+    if connu["mobility"] is None:
+        manquants.append("mobility")
+    if connu["mobility"] == "cannot_move" and not identite:
+        manquants.append("identity")
+    if connu["situation"] is None:
+        manquants.append("situation")
+    if not localisation_connue:
+        manquants.append("location")
+    return manquants
 
 # ===========================
 #  Clarificateur
 # ===========================
 
-MAX_QUESTIONS = 5
 MAX_CAR_QUESTION = 300
-Item = Literal["mobility", "identity", "situation", "location"]
+MAX_QUESTIONS = 6
+Item = Literal["kind", "mobility", "identity", "situation", "location"]
+KINDS_VALIDES = frozenset({"pharmacy", "health_center", "on_call"})
 AWAITING_PAR_ITEM: dict[Item, Awaiting] = {
+    "kind": "choice",
     "mobility": "choice",
     "identity": "image",
     "situation": "free_text",
@@ -235,6 +324,7 @@ async def _contexte(messages: MessageStore, state: ConversationState, identite: 
     s = state["search"]
     lignes = [
         "ÉTAT CONNU",
+        f"- intent : {state['intent']}",
         f"- mobility : {state['mobility']}",
         f"- situation : {state['situation']}",
         f"- quartier : {s.get('quartier')}",
@@ -244,6 +334,8 @@ async def _contexte(messages: MessageStore, state: ConversationState, identite: 
     ]
     if state["image_instruction"]:
         lignes.append(f"CONSIGNE IMAGE : {state['image_instruction']}")
+    if _est_sobre(state):
+        lignes.append(REGISTRE_SOBRE_CLARIF)
     lignes += ["", "MESSAGES"]
     lignes += [
         f"{'Genius' if r.direction == 'out' else 'Patient'} : {_coupe(r.text)}"
@@ -297,32 +389,40 @@ def _fusion(state: ConversationState, sortie: _ClarifOut | None) -> dict[str, An
         situation = sortie.situation or situation
         if sortie.quartier and sortie.quartier.strip():
             search["quartier"] = sortie.quartier.strip()
-        if sortie.kind and sortie.kind.strip():
+        if sortie.kind and sortie.kind.strip() in KINDS_VALIDES:
             search["kind"] = sortie.kind.strip()
     return {"mobility": mobility, "situation": situation, "search": search}
 
+STEMS_PROPRES: dict[Item, tuple[str, ...]] = {
+    "kind": ("pharmacie", "centre", "type", "lieu"),
+    "mobility": ("déplac",),
+    "identity": ("identit", "pièce"),
+    "situation": ("situation", "se passe", "expliquer"),
+}
+STEMS_DISTINCTIFS: dict[Item, tuple[str, ...]] = {
+    "mobility": ("déplac",),
+    "identity": ("identit",),
+    "situation": ("situation",),
+    "location": ("quartier", "position"),
+}
 
-def _manquants(connu: Mapping[str, Any], identite: bool) -> list[Item]:
-    manquants: list[Item] = []
-    if connu["mobility"] is None:
-        manquants.append("mobility")
-    if connu["mobility"] == "cannot_move" and not identite:
-        manquants.append("identity")
-    if connu["situation"] is None:
-        manquants.append("situation")
-    s = connu["search"]
-    if not (s.get("quartier") or ("lat" in s and "lng" in s)):
-        manquants.append("location")
-    return manquants
 
-
+def _question_valide(item: Item, question: str) -> bool:
+    """Garde-fou : une question, sur l'information demandée seulement."""
+    q = question.casefold()
+    if question.count("?") != 1:
+        return False
+    if not any(m in q for m in STEMS_PROPRES.get(item, ())):
+        return False
+    autres = (m for i, mots in STEMS_DISTINCTIFS.items() if i != item for m in mots)
+    return not any(m in q for m in autres)
 def creer_noeud_clarificateur(messages: MessageStore) -> Noeud:
     async def clarificateur(state: ConversationState) -> dict[str, Any]:
         identite = state["identity_received"] or _identite_lue(state)
         sortie = await _extraire(messages, state, identite)
         connu = _fusion(state, sortie)
         base: dict[str, Any] = {**connu, "identity_received": identite}
-        manquants = _manquants(connu, identite)
+        manquants = _manquants(connu, identite, state["intent"])
 
         if not manquants or state["clarify_turns"] >= MAX_QUESTIONS:
             return {
@@ -334,17 +434,24 @@ def creer_noeud_clarificateur(messages: MessageStore) -> Noeud:
                 "awaiting_detail": None,
                 "expected_image_type": None,
             }
+            
 
         # Le LLM choisit parmi les informations manquantes ; jamais une info connue.
         item: Item = manquants[0]
-        question = ""
-        if sortie is not None and sortie.question:
-            detail = sortie.awaiting_detail
-            if detail is not None and detail in manquants:
-                item, question = detail, sortie.question
         awaiting = AWAITING_PAR_ITEM[item]
+        question = ""
+        if item == "location":
+            question = texte_localisation(
+                state["intent"], connu["search"].get("kind"), _est_sobre(state)
+            )
+        elif (
+            sortie is not None
+            and sortie.awaiting_detail == item
+            and _question_valide(item, sortie.question)
+        ):
+            question = sortie.question
         if not question:
-            question = render_reply(f"clarif_{awaiting}")
+            question = render_reply("clarif_kind" if item == "kind" else f"clarif_{awaiting}")
         return {
             **base,
             "step": "clarify",
@@ -365,11 +472,22 @@ def creer_noeud_clarificateur(messages: MessageStore) -> Noeud:
 
 HISTORIQUE_GENIUS = 20
 CONSIGNE_ATTENTE = (
-    "CONSIGNE DE SERVICE : la recherche de lieux, le transport et le contact d'un "
-    "médecin ne sont pas encore disponibles. Si le patient en demande un, explique "
-    "simplement que ce service n'est pas encore disponible. Ne promets ni recherche, "
-    "ni réservation, ni appel."
+    "CONSIGNE DE SERVICE : le transport et le contact d'un médecin ne sont pas "
+    "encore disponibles. Si le patient en demande un, explique simplement que ce "
+    "service n'est pas encore disponible. Ne promets ni réservation, ni appel. "
+    "La recherche de lieux est faite par un autre module : ne cite jamais toi-même "
+    "de lieu, d'horaire ni de numéro."
 )
+CONSIGNE_SOBRE = (
+    "REGISTRE : sobre. La situation est peut-être sérieuse. Calme et direct, "
+    "l'action utile en premier, phrases très courtes, une demi-phrase d'empathie "
+    "au plus, aucun emoji, aucune réassurance. Gras réservé à l'action ou au numéro."
+)
+REGISTRE_SOBRE_CLARIF = "REGISTRE : sobre. Question courte et directe, aucun emoji."
+
+
+def _est_sobre(state: ConversationState) -> bool:
+    return Level(state["urgency_level"]).value >= Level.INCERTAIN.value
 
 
 async def _historique(messages: MessageStore, user_id: str) -> list[dict[str, str]]:
@@ -385,6 +503,9 @@ async def _historique(messages: MessageStore, user_id: str) -> list[dict[str, st
 def creer_noeud_genius(messages: MessageStore) -> Noeud:
     async def genius(state: ConversationState) -> dict[str, Any]:
         consignes = [CONSIGNE_ATTENTE]
+
+        if _est_sobre(state):
+            consignes.append(CONSIGNE_SOBRE)
         if state["image_instruction"]:
             consignes.append(f"CONSIGNE IMAGE : {state['image_instruction']}")
         historique = await _historique(messages, state["user_id"])
@@ -405,3 +526,36 @@ def creer_noeud_genius(messages: MessageStore) -> Noeud:
         return {"reply_text": texte.strip()}
 
     return genius
+# A_COMPLETER = frozenset({Statut.TYPE_MANQUANT, Statut.POSITION_MANQUANTE, Statut.QUARTIER_INCONNU})
+SUITE_PAR_STATUT: dict[Statut, tuple[Awaiting, str]] = {
+    Statut.TYPE_MANQUANT: ("choice", "kind"),
+        Statut.POSITION_MANQUANTE: ("free_text", "quartier"),
+    Statut.QUARTIER_INCONNU: ("location", "location"),
+}
+
+
+def creer_noeud_lieux(sessionmaker: async_sessionmaker[AsyncSession]) -> Noeud:
+    async def lieux(state: ConversationState) -> dict[str, Any]:
+        
+        try:
+            async with sessionmaker() as session:
+                recherche = await chercher_lieux(session, state["search"])
+        except SQLAlchemyError as e:
+            logger.warning("lieux : base indisponible : %s", type(e).__name__)
+            return {"reply_key": "probleme_technique"}
+        maj: dict[str, Any] = {"reply_text": rendre_recherche(recherche, _est_sobre(state))}
+        suite = SUITE_PAR_STATUT.get(recherche.statut)
+        if suite is not None:
+            awaiting, detail = suite
+            maj |= {
+                "step": "clarify",
+                "awaiting": awaiting,
+                "awaiting_since": datetime.now(UTC).isoformat(),
+                "awaiting_detail": detail,
+            }
+            if recherche.statut is Statut.QUARTIER_INCONNU:
+                # Sans ça, _manquants juge la localisation connue et on boucle.
+                maj["search"] = {k: v for k, v in state["search"].items() if k != "quartier"}
+        return maj
+
+    return lieux

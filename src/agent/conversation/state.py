@@ -19,7 +19,9 @@ Intent = Literal[
     "reminder",
     "prevention",
     "human_help",
-    "out_of_scope",
+     "out_of_scope",
+    "menu",
+
 ]
 Mobility = Literal["can_move", "cannot_move"]
 Situation = Literal["pregnant", "asthma", "sick_baby", "heart", "accident", "other"]
@@ -51,6 +53,8 @@ class SearchParams(TypedDict, total=False):
     quartier: str
     lat: float
     lng: float
+    place_name: str
+    address: str
 
 
 def keep_last(n: int) -> Callable[[list[str] | None, list[str] | None], list[str]]:

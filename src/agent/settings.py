@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     WEBHOOK_VERIFY_TOKEN: str | None = None
     META_GRAPH_BASE_URL: str = "https://graph.facebook.com"
 
+    # Flow WhatsApp (pièce d'identité) : facultatif, vide = pas de FlowButton
+    WHATSAPP_FLOW_ID: str | None = None
+    WHATSAPP_FLOW_BROUILLON: bool = True
     # LLMs
     GROQ_API_KEY: str
     GROQ_MODEL_TEXT: str = "openai/gpt-oss-120b"
