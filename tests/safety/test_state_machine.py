@@ -228,8 +228,11 @@ def _evenements_possibles():
     evts += [BoutonSigneDanger("q"), ReevaluationSansDanger(), SortieConfirmee("engin")]
     for eid in ("e1", "e2"):
         evts += [
-            AccuseMedecin(eid), DelaiAccuseExpire(eid), DelaiSecondCanalExpire(eid),
-            AccuseTechnique(eid), EchecEnvoi(eid, "131000"),
+            AccuseMedecin(eid),
+            DelaiAccuseExpire(eid),
+            DelaiSecondCanalExpire(eid),
+            AccuseTechnique(eid),
+            EchecEnvoi(eid, "131000"),
         ]
     return evts
 

@@ -32,7 +32,7 @@ def demarrer_whatsapp(app: FastAPI) -> None:
         "ordonnance": extraire_ordonnance,
         "piece_identite": extraire_piece_identite,
     }
-    graphe = build_graph(images, resultats, messages, appel_vlm, extracteurs, get_sessionmaker())   
+    graphe = build_graph(images, resultats, messages, appel_vlm, extracteurs, get_sessionmaker())
     wa = creer_client(app)
     reglages = get_setting()
     traiteur = Traiteur(

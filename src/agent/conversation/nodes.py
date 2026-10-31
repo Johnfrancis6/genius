@@ -37,11 +37,16 @@ from agent.modules.images.image_tool import (
 )
 from agent.modules.lieux.recherche import Statut, chercher_lieux
 from agent.modules.lieux.rendu import rendre_recherche
+from agent.modules.stock.recherche import chercher_stock
+from agent.modules.stock.rendu import rendre_stock
 from agent.safety.evaluation import evaluer_urgence
 from agent.safety.levels import Level, raise_only, urgency_from_level, worst
+from agent.settings import get_setting
 from agent.stores import ExtractionStore, MessageStore, PgImageStore
 
 logger = logging.getLogger(__name__)
+
+INTENTS_A_CLARIFIER = frozenset({"search", "transport", "stock"})
 
 
 class Noeud(Protocol):
@@ -102,7 +107,6 @@ def creer_noeud_traiter_image(
 #  Route (intention)
 # ===========================
 
-INTENTS_A_CLARIFIER = frozenset({"search", "transport"})
 MAX_CAR_MESSAGE = 300
 
 
@@ -157,6 +161,7 @@ def _search_neuf(state: ConversationState) -> dict[str, Any]:
         }
     return {}
 
+
 ATTENTE_VIDE: dict[str, Any] = {
     "awaiting": None,
     "awaiting_since": None,
@@ -190,6 +195,8 @@ def _appliquer_ligne(state: ConversationState, ligne: LigneMenu) -> dict[str, An
     if ligne.kind:
         search = {**search, "kind": ligne.kind}
     return {"intent": ligne.intent, "step": "start", "search": search}
+
+
 def creer_noeud_route(messages: MessageStore) -> Noeud:
     async def route(state: ConversationState) -> dict[str, Any]:
         recents = await _recents(messages, state, 2)
@@ -223,6 +230,8 @@ def creer_noeud_route(messages: MessageStore) -> Noeud:
             maj["reply_key"] = "hors_perimetre"
         elif intent == "human_help":
             maj["reply_key"] = "aide_humaine"
+        elif intent == "stock" and not get_setting().DEMO_MODE:
+            maj["reply_key"] = "stock_indisponible"
         elif intent in INTENTS_A_CLARIFIER and state["step"] == "answered":
             # Nouvelle demande : on garde mobilité, situation et identité.
             maj["step"] = "start"
@@ -230,6 +239,7 @@ def creer_noeud_route(messages: MessageStore) -> Noeud:
         return maj
 
     return route
+
 
 def apres_route(state: ConversationState) -> Literal["fin", "clarificateur", "lieux", "genius"]:
     """Arête après route : fin, clarificateur (search/transport non terminés), lieux ou genius."""
@@ -242,15 +252,25 @@ def apres_route(state: ConversationState) -> Literal["fin", "clarificateur", "li
     return "genius"
 
 
-def apres_clarificateur(state: ConversationState) -> Literal["lieux", "genius", "fin"]:
-    """Même règle de fin que suite_ou_fin ; ensuite lieux pour search, genius sinon."""
+def apres_clarificateur(state: ConversationState) -> Literal["lieux", "stock", "genius", "fin"]:
     if suite_ou_fin(state) == "fin":
         return "fin"
-    return "lieux" if state["intent"] == "search" else "genius"
+    if state["intent"] == "search":
+        return "lieux"
+    if state["intent"] == "stock":
+        return "stock"
+    return "genius"
 
 
 def _manquants(connu: Mapping[str, Any], identite: bool, intent: str) -> list[Item]:
     s = connu["search"]
+    if intent == "stock":
+        manquants_stock: list[Item] = []
+        if not s.get("produit"):
+            manquants_stock.append("product")
+        if not ("lat" in s and "lng" in s):
+            manquants_stock.append("location")
+        return manquants_stock
     localisation_connue = bool(s.get("quartier") or ("lat" in s and "lng" in s))
     manquants: list[Item] = []
     if intent == "search" and not s.get("kind"):
@@ -265,13 +285,14 @@ def _manquants(connu: Mapping[str, Any], identite: bool, intent: str) -> list[It
         manquants.append("location")
     return manquants
 
+
 # ===========================
 #  Clarificateur
 # ===========================
 
 MAX_CAR_QUESTION = 300
 MAX_QUESTIONS = 6
-Item = Literal["kind", "mobility", "identity", "situation", "location"]
+Item = Literal["kind", "product", "mobility", "identity", "situation", "location"]
 KINDS_VALIDES = frozenset({"pharmacy", "health_center", "on_call"})
 AWAITING_PAR_ITEM: dict[Item, Awaiting] = {
     "kind": "choice",
@@ -279,6 +300,7 @@ AWAITING_PAR_ITEM: dict[Item, Awaiting] = {
     "identity": "image",
     "situation": "free_text",
     "location": "location",
+    "product": "free_text",
 }
 
 
@@ -288,6 +310,7 @@ class _ClarifOut(BaseModel):
     situation: Situation | None = None
     quartier: str | None = Field(default=None, max_length=100)
     kind: str | None = Field(default=None, max_length=60)
+    produit: str | None = Field(default=None, max_length=100)
     next_awaiting: Awaiting | None = None
     awaiting_detail: Item | None = None
     question: str = Field(default="", max_length=MAX_CAR_QUESTION)
@@ -329,6 +352,7 @@ async def _contexte(messages: MessageStore, state: ConversationState, identite: 
         f"- situation : {state['situation']}",
         f"- quartier : {s.get('quartier')}",
         f"- kind : {s.get('kind')}",
+        f"- produit : {s.get('produit')}",
         f"- position WhatsApp reçue : {'oui' if 'lat' in s and 'lng' in s else 'non'}",
         f"- pièce d'identité reçue : {'oui' if identite else 'non'}",
     ]
@@ -362,7 +386,11 @@ async def _extraire(
         try:
             return _ClarifOut.model_validate_json(brut)
         except ValidationError as e:
-            logger.warning("clarificateur : sortie invalide")
+            # Champ et type d'erreur seulement : jamais la valeur (donnée patient).
+            logger.warning(
+                "clarificateur : sortie invalide %s",
+                [(".".join(map(str, x["loc"])), x["type"]) for x in e.errors()],
+            )
             if essai == 0:
                 erreurs = "; ".join(
                     f"{'.'.join(map(str, x['loc']))}: {x['msg']}"
@@ -391,19 +419,24 @@ def _fusion(state: ConversationState, sortie: _ClarifOut | None) -> dict[str, An
             search["quartier"] = sortie.quartier.strip()
         if sortie.kind and sortie.kind.strip() in KINDS_VALIDES:
             search["kind"] = sortie.kind.strip()
+        if sortie.produit and sortie.produit.strip():
+            search["produit"] = sortie.produit.strip()
     return {"mobility": mobility, "situation": situation, "search": search}
+
 
 STEMS_PROPRES: dict[Item, tuple[str, ...]] = {
     "kind": ("pharmacie", "centre", "type", "lieu"),
     "mobility": ("déplac",),
     "identity": ("identit", "pièce"),
     "situation": ("situation", "se passe", "expliquer"),
+    "product": ("médicament", "produit", "cherchez", "recherchez"),
 }
 STEMS_DISTINCTIFS: dict[Item, tuple[str, ...]] = {
     "mobility": ("déplac",),
     "identity": ("identit",),
     "situation": ("situation",),
     "location": ("quartier", "position"),
+    "product": ("médicament",),
 }
 
 
@@ -416,6 +449,8 @@ def _question_valide(item: Item, question: str) -> bool:
         return False
     autres = (m for i, mots in STEMS_DISTINCTIFS.items() if i != item for m in mots)
     return not any(m in q for m in autres)
+
+
 def creer_noeud_clarificateur(messages: MessageStore) -> Noeud:
     async def clarificateur(state: ConversationState) -> dict[str, Any]:
         identite = state["identity_received"] or _identite_lue(state)
@@ -434,7 +469,6 @@ def creer_noeud_clarificateur(messages: MessageStore) -> Noeud:
                 "awaiting_detail": None,
                 "expected_image_type": None,
             }
-            
 
         # Le LLM choisit parmi les informations manquantes ; jamais une info connue.
         item: Item = manquants[0]
@@ -451,7 +485,8 @@ def creer_noeud_clarificateur(messages: MessageStore) -> Noeud:
         ):
             question = sortie.question
         if not question:
-            question = render_reply("clarif_kind" if item == "kind" else f"clarif_{awaiting}")
+            cle = f"clarif_{item}" if item in ("kind", "product") else f"clarif_{awaiting}"
+            question = render_reply(cle)
         return {
             **base,
             "step": "clarify",
@@ -526,17 +561,19 @@ def creer_noeud_genius(messages: MessageStore) -> Noeud:
         return {"reply_text": texte.strip()}
 
     return genius
+
+
 # A_COMPLETER = frozenset({Statut.TYPE_MANQUANT, Statut.POSITION_MANQUANTE, Statut.QUARTIER_INCONNU})
 SUITE_PAR_STATUT: dict[Statut, tuple[Awaiting, str]] = {
     Statut.TYPE_MANQUANT: ("choice", "kind"),
-        Statut.POSITION_MANQUANTE: ("free_text", "quartier"),
+    Statut.POSITION_MANQUANTE: ("free_text", "quartier"),
     Statut.QUARTIER_INCONNU: ("location", "location"),
 }
 
 
 def creer_noeud_lieux(sessionmaker: async_sessionmaker[AsyncSession]) -> Noeud:
     async def lieux(state: ConversationState) -> dict[str, Any]:
-        
+
         try:
             async with sessionmaker() as session:
                 recherche = await chercher_lieux(session, state["search"])
@@ -559,3 +596,18 @@ def creer_noeud_lieux(sessionmaker: async_sessionmaker[AsyncSession]) -> Noeud:
         return maj
 
     return lieux
+
+
+def creer_noeud_stock(sessionmaker: async_sessionmaker[AsyncSession]) -> Noeud:
+    async def stock(state: ConversationState) -> dict[str, Any]:
+        if not get_setting().DEMO_MODE:
+            return {"reply_key": "stock_indisponible"}
+        try:
+            async with sessionmaker() as session:
+                recherche = await chercher_stock(session, state["search"])
+        except SQLAlchemyError as e:
+            logger.warning("stock : base indisponible : %s", type(e).__name__)
+            return {"reply_key": "probleme_technique"}
+        return {"reply_text": rendre_stock(recherche, _est_sobre(state))}
+
+    return stock

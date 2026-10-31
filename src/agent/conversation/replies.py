@@ -20,11 +20,16 @@ _TEXTES: dict[str, str] = {
         "mais cette fonction arrive bientôt. Pouvez-vous m'écrire votre message "
         "en quelques mots ?"
     ),
+    "clarif_product": "Quel médicament cherchez-vous ?",
+    "stock_indisponible": (
+        "La recherche de médicaments n'est pas encore disponible. Je peux en revanche "
+        "vous aider à trouver un centre de santé ou une pharmacie."
+    ),
     "clarif_choice": (
         "Pouvez-vous vous déplacer jusqu'à un centre de santé, ou avez-vous "
         "besoin d'aide pour vous y rendre ?"
     ),
-        "clarif_kind": (
+    "clarif_kind": (
         "De quel type de lieu avez-vous besoin : une pharmacie, un centre de santé "
         "ou une pharmacie de garde ?"
     ),
@@ -58,7 +63,7 @@ _TEXTES: dict[str, str] = {
         "encore disponible. En attendant, dites-moi ce dont vous avez besoin et "
         "j'essaie de vous aider."
     ),
-        "menu_accueil": (
+    "menu_accueil": (
         "Bonjour, je suis Genius 🤝. Je vous aide à trouver un centre de santé ou "
         "une pharmacie, ou à vous déplacer. Que souhaitez-vous faire ?"
     ),
@@ -134,11 +139,12 @@ MOTIFS_LOCALISATION: dict[str, str] = {
     "pharmacie de garde": "chercher une pharmacie de garde proche",
     "centre de santé": "trouver un centre de santé proche",
     "garde": "trouver un service de garde proche",
+    "stock": "trouver une pharmacie qui a votre médicament",
     "médecin": "trouver un médecin proche",
     "pharmacy": "chercher une pharmacie proche",
     "health_center": "trouver un centre de santé proche",
     "on_call": "chercher une pharmacie de garde proche",
-} # clé = kind ou intent -> but ; une ligne par service livré
+}  # clé = kind ou intent -> but ; une ligne par service livré
 
 
 def texte_localisation(intent: str | None, kind: str | None, sobre: bool) -> str:

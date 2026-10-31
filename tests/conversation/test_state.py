@@ -17,10 +17,6 @@ def test_ancien_etat_sans_nouveaux_champs():
 
 def test_cles_non_persistees():
     assert not {"urgency_level", "urgency", "image_instruction", "reply_text"} & set(PERSISTED_KEYS)
-    
-
-
-
 
 
 def test_intent_repris_seulement_si_awaiting():
@@ -30,8 +26,6 @@ def test_intent_repris_seulement_si_awaiting():
 
 
 def test_cles_non_persistees_ignorees():
-    s = build_turn_state(
-        "u", "i", "text", {"urgency_level": 4, "reply_text": "x", "autre": 1}
-    )
+    s = build_turn_state("u", "i", "text", {"urgency_level": 4, "reply_text": "x", "autre": 1})
     assert s["urgency_level"] == Level.NORMAL and s["reply_text"] is None
     assert "autre" not in s

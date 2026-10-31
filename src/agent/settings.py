@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # RAG
     top_k: int = 3
 
+    # demo
+    DEMO_MODE: bool = True
+
 
 @lru_cache
 def get_setting() -> Settings:

@@ -11,6 +11,7 @@ from agent.conversation.nodes import (
     creer_noeud_genius,
     creer_noeud_lieux,
     creer_noeud_route,
+    creer_noeud_stock,
     creer_noeud_traiter_image,
     suite_ou_fin,
     transcrire,
@@ -47,6 +48,8 @@ def build_graph(
     g.add_node("clarificateur", creer_noeud_clarificateur(messages))
     g.add_node("genius", creer_noeud_genius(messages))
     g.add_node("lieux", creer_noeud_lieux(sessionmaker))
+    g.add_node("stock", creer_noeud_stock(sessionmaker))
+    g.add_edge("stock", END)
     g.add_edge(START, "transcrire")
     g.add_conditional_edges("transcrire", suite_ou_fin, {"suite": "urgence", "fin": END})
     g.add_conditional_edges("urgence", suite_ou_fin, {"suite": "traiter_image", "fin": END})
@@ -54,28 +57,26 @@ def build_graph(
     g.add_conditional_edges(
         "route",
         apres_route,
-        {"fin": END, "clarificateur": "clarificateur", "genius": "genius"},
+        {"fin": END, "clarificateur": "clarificateur", "lieux": "lieux", "genius": "genius"},
     )
     g.add_conditional_edges(
         "clarificateur",
         apres_clarificateur,
-        {"lieux": "lieux", "genius": "genius", "fin": END},
+        {"lieux": "lieux", "stock": "stock", "genius": "genius", "fin": END},
     )
     g.add_edge("lieux", END)
     g.add_edge("genius", END)
     return g.compile()
 
 
-async def run_graph(
-    graphe: Graphe, state: ConversationState
-) -> tuple[str, dict[str, Any]]:
+async def run_graph(graphe: Graphe, state: ConversationState) -> tuple[str, dict[str, Any]]:
     """Exécute un tour. Retourne (réponse, état final).
 
     Le store filtre lui-même sur PERSISTED_KEYS. Une exception du graphe n'est pas
     attrapée : le webhook envoie le message de repli sans sauver l'état.
     """
     final: dict[str, Any] = await graphe.ainvoke(state)
-    
+
     if final["reply_key"]:
         texte = render_reply(final["reply_key"], final["reply_args"])
     else:
@@ -88,6 +89,3 @@ async def run_graph(
         if numeros:
             texte = f"{numeros}\n\n{texte}"
     return texte, final
-
-
-

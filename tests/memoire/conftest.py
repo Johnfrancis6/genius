@@ -9,6 +9,7 @@ Les tables sont créées avec Base.metadata.create_all (pas Alembic) : le test n
 dépend ni d'alembic.ini ni de env.py et ne peut pas migrer la base de dev par
 erreur. La conformité migration/modèles reste le travail de `alembic check`.
 """
+
 import os
 import secrets
 

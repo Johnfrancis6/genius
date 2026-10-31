@@ -18,6 +18,7 @@ def valideur(*resultats):
     def _v(brut):
         appels.append(brut)
         return next(it)
+
     _v.appels = appels
     return _v
 
@@ -50,7 +51,7 @@ async def test_erreur_fournisseur_devient_un_rejet():
     vlm, v = FakeVLM(RuntimeError("503")), valideur()
     r = await extraction(b"img", "prompt", vlm, v)
     assert isinstance(r, Reject) and r.reason == ReasonRejet.ERREUR_FOURNISSEUR
-    assert v.appels == []                     # rien à valider
+    assert v.appels == []  # rien à valider
 
 
 async def test_l_annulation_n_est_pas_avalee():

@@ -6,6 +6,7 @@ agent.purge.purge_expired par un enregistreur : purge_loop le cherche à chaque
 tour dans le module, donc le remplacement fonctionne sans dépendre de la façon
 dont app.py importe purge_loop.
 """
+
 import asyncio
 
 import pytest
@@ -49,7 +50,8 @@ def numeros_urgence(monkeypatch):
     monkeypatch.setenv("EMERGENCY_NUMBERS", '["NUM-TEST-1"]')
     _clear_caches()
     yield
-    _clear_caches() # avant la restauration de l'environnement par monkeypatch
+    _clear_caches()  # avant la restauration de l'environnement par monkeypatch
+
 
 @pytest.fixture
 def purge_calls(monkeypatch) -> list[int]:
@@ -95,9 +97,7 @@ async def test_lifespan_disposes_engine_on_shutdown(purge_calls, monkeypatch):
     assert len(disposed) == 1
 
 
-async def test_lifespan_refuses_to_start_with_invalid_fernet_keys(
-    purge_calls, monkeypatch
-):
+async def test_lifespan_refuses_to_start_with_invalid_fernet_keys(purge_calls, monkeypatch):
     monkeypatch.setenv("FERNET_KEYS", "pas-une-cle-fernet")
     _clear_caches()
     app = _get_app()

@@ -10,14 +10,14 @@ from agent.modules.images.normalisation import _present, mots, normaliser
         ("Paracétamol 500 mg", "paracetamol 500 mg"),
         ("PARACÉTAMOL", "paracetamol"),
         ("  Amoxicilline \t\n 500mg  ", "amoxicilline 500 mg"),
-        ("500mg", "500 mg"),                       # chiffre puis lettre
-        ("mg500", "mg 500"),                       # lettre puis chiffre
+        ("500mg", "500 mg"),  # chiffre puis lettre
+        ("mg500", "mg 500"),  # lettre puis chiffre
         ("Paracétamol500MG", "paracetamol 500 mg"),
         ("Amox-Clav 1g/125mg", "amox clav 1 g 125 mg"),
-        ("Vit_C, 1000mg.", "vit c 1000 mg"),       # "_" et ponctuation -> espace
+        ("Vit_C, 1000mg.", "vit c 1000 mg"),  # "_" et ponctuation -> espace
         ("[illisible]", "illisible"),
-        ("Αλφα1", "αλφα 1"),                       # lettres non latines conservées
-        ("５００ｍｇ", "500 mg"),                     # NFKD : pleine chasse -> ASCII
+        ("Αλφα1", "αλφα 1"),  # lettres non latines conservées
+        ("５００ｍｇ", "500 mg"),  # NFKD : pleine chasse -> ASCII
         ("...---", ""),
         ("", ""),
         ("   ", ""),
@@ -55,6 +55,7 @@ def test_mots_vide_pour_une_ponctuation_seule():
 
 
 # ---- _present : dépend directement de la normalisation ----
+
 
 def drug(texte: str) -> Drug:
     return Drug(text=texte, confident="haute")

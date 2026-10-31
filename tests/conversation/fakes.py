@@ -1,4 +1,5 @@
 """Faux LLM pour les tests des nœuds."""
+
 from __future__ import annotations
 
 

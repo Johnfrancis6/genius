@@ -65,6 +65,7 @@ def _sticker_permis(final: dict[str, Any]) -> bool:
         return False
     return final.get("reply_key") not in SANS_STICKER
 
+
 class Traiteur:
     def __init__(
         self,
@@ -191,8 +192,8 @@ class Traiteur:
             return
         await self.etats.save(user_key, final)
         position = _position_demandee(final, reponse)
-        clavier = None if position else _clavier_permis(
-            final, reponse, self.flow_id, self.flow_brouillon
+        clavier = (
+            None if position else _clavier_permis(final, reponse, self.flow_id, self.flow_brouillon)
         )
         envoye = await self._envoyer(user_key, wa_id, reponse, clavier, position)
         if envoye and _sticker_permis(final):
@@ -243,6 +244,7 @@ class Traiteur:
         except Exception as e:
             logger.error("« out » non enregistré : %s", type(e).__name__)
         return True
+
 
 def _question_permise(final: dict[str, Any], texte: str) -> bool:
     """Question en cours, hors urgence, repli et corps trop long."""

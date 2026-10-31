@@ -112,13 +112,14 @@ async def _enregistrer_doublons(
             .where(OsmPlace.id == ids_lieux[ref_doublon])
             .values(duplicate_of=ids_lieux[ref_garde])
         )
+
+
 async def _supprimer_quartiers_perimes(session: AsyncSession, quartiers: list[QuartierOsm]) -> None:
     """Retire de la base les quartiers absents du chargement (ex. « Q-Dapoya » devenu « Dapoya »)."""
     if not quartiers:  # garde-fou : un mauvais fichier ne doit pas vider la table
         return
     refs = [q.osm_ref for q in quartiers]
     await session.execute(delete(Quarter).where(Quarter.osm_ref.not_in(refs)))
-    
 
 
 async def charger(chemin: Path) -> Rapport:
@@ -144,6 +145,7 @@ async def charger(chemin: Path) -> Rapport:
         sans_nom=sum(1 for lieu in lieux if lieu.name is None),
         sans_quartier=sans_quartier,
     )
+
 
 def main() -> None:
     if len(sys.argv) != 2:

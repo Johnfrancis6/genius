@@ -2,15 +2,14 @@
 
 from pywa_async import types
 
-
-from agent.conversation.meny  import MENU
+from agent.conversation.meny import MENU
+from agent.settings import get_setting
 
 Clavier = list[types.Button] | types.SectionList | types.FlowButton
 
 BOUTONS_MOBILITE = (
     ("Je peux me déplacer", "mobility:can_move"),
     ("Je ne peux pas", "mobility:cannot_move"),
-
 )
 BOUTONS_TYPE = (
     ("Pharmacie", "kind:pharmacy"),
@@ -49,7 +48,12 @@ def clavier(
     if awaiting_detail == "kind":
         return [types.Button(title=t, callback_data=d) for t, d in BOUTONS_TYPE]
     if awaiting_detail == "menu":
-        lignes = [types.SectionRow(title=ligne.titre, callback_data=ligne.callback) for ligne in MENU]
+        demo = get_setting().DEMO_MODE
+        lignes = [
+            types.SectionRow(title=ligne.titre, callback_data=ligne.callback)
+            for ligne in MENU
+            if demo or not ligne.demo
+        ]
         return types.SectionList(
             button_title="Choisir",
             sections=[types.Section(title="Menu", rows=lignes)],

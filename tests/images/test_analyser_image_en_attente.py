@@ -139,9 +139,7 @@ async def test_description_de_l_image_n_atteint_pas_la_consigne(
     assert INJECTION not in repr(out)
 
 
-async def test_l_outil_met_la_consigne_dans_le_toolmessage(
-    images, resultats, extracteurs, state
-):
+async def test_l_outil_met_la_consigne_dans_le_toolmessage(images, resultats, extracteurs, state):
     outil = m.creer_outil_image(images, resultats, FakeVLM(classif()), extracteurs)
     cmd = await outil.coroutine(state=state, tool_call_id="c1")
     assert "image_instruction" not in cmd.update

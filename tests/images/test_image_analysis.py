@@ -87,6 +87,7 @@ async def test_extraction_rejetee_pour_schema_invalide():
     assert r.status == m.Status.TECHNICAL_ERROR and r.data is None
     assert r.reason == ReasonRejet.SCHEMA_INVALIDE
 
+
 async def test_timeout(monkeypatch, extracteurs):
     monkeypatch.setattr(m, "TIMEOUT_S", 0.05)
     r = await lancer(SlowVLM(), None, extracteurs)

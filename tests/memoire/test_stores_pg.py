@@ -1,4 +1,5 @@
 """Tests des stores et de la purge sur un vrai PostgreSQL (testcontainers)."""
+
 import asyncio
 import uuid
 from datetime import datetime, timedelta
@@ -130,9 +131,7 @@ async def test_phone_is_stored_pseudonymised_and_encrypted():
     user_id = await get_or_create_user(phone(1))
     async with session_scope() as session:
         row = (
-            await session.execute(
-                select(User.phone_hmac, User.phone_enc).where(User.id == user_id)
-            )
+            await session.execute(select(User.phone_hmac, User.phone_enc).where(User.id == user_id))
         ).one()
     assert len(row.phone_hmac) == 64
     assert phone(1) not in row.phone_hmac
@@ -170,9 +169,7 @@ async def test_image_roundtrip_and_encrypted_at_rest():
     store, user = PgImageStore(), await make_user()
     image_id = await store.put(user, PNG, "image/png")
     assert await store.get(user, image_id) == PNG
-    stored = await scalar(
-        select(Image.data_enc).where(Image.id == uuid.UUID(image_id))
-    )
+    stored = await scalar(select(Image.data_enc).where(Image.id == uuid.UUID(image_id)))
     assert stored != PNG
     assert PNG[:12] not in stored
     await assert_ttl(Image, image_id, IMAGE_TTL)
@@ -211,6 +208,7 @@ async def test_image_delete_removes_expired_rows():
     await store.delete(user, image_id)
     assert await count(Image) == 0
 
+
 async def test_image_put_rejects_unknown_mime_type():
     store, user = PgImageStore(), await make_user()
     with pytest.raises(ValueError):
@@ -231,15 +229,11 @@ async def test_extraction_roundtrip_and_encrypted_at_rest():
     result_id = await store.put(user, "ordonnance", PAYLOAD)
     assert await store.get(user, result_id) == PAYLOAD
     stored = await scalar(
-        select(ExtractionResult.payload_enc).where(
-            ExtractionResult.id == uuid.UUID(result_id)
-        )
+        select(ExtractionResult.payload_enc).where(ExtractionResult.id == uuid.UUID(result_id))
     )
     assert b"Parac" not in stored
     image_type = await scalar(
-        select(ExtractionResult.image_type).where(
-            ExtractionResult.id == uuid.UUID(result_id)
-        )
+        select(ExtractionResult.image_type).where(ExtractionResult.id == uuid.UUID(result_id))
     )
     assert image_type == "ordonnance"
     await assert_ttl(ExtractionResult, result_id, EXTRACTION_TTL)

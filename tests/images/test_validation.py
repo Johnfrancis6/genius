@@ -51,6 +51,7 @@ def rejet(res, raison, retryable):
 
 # ---------- parse_modele ----------
 
+
 def test_parse_nominal():
     assert isinstance(parse_modele(ordonnance(), Ordonnance_output), Ordonnance_output)
 
@@ -61,14 +62,12 @@ def test_parse_accepte_les_balises_markdown():
 
 
 def test_parse_taille_excessive():
-    rejet(parse_modele("x" * (MAX_BRUT + 1), Ordonnance_output),
-          ReasonRejet.TAILLE_EXCESSIVE, True)
+    rejet(parse_modele("x" * (MAX_BRUT + 1), Ordonnance_output), ReasonRejet.TAILLE_EXCESSIVE, True)
 
 
 def test_parse_a_la_limite_la_taille_est_acceptee():
     # exactement MAX_BRUT : pas de rejet de taille, mais pas du JSON
-    rejet(parse_modele("x" * MAX_BRUT, Ordonnance_output),
-          ReasonRejet.JSON_INVALIDE, True)
+    rejet(parse_modele("x" * MAX_BRUT, Ordonnance_output), ReasonRejet.JSON_INVALIDE, True)
 
 
 @pytest.mark.parametrize("brut", ["pas du json", "", "{", "{'a': 1}"])
@@ -81,8 +80,7 @@ def test_parse_json_qui_n_est_pas_un_objet():
 
 
 def test_parse_cle_en_trop_est_interdite_et_non_reessayable():
-    rejet(parse_modele(ordonnance(prix=3), Ordonnance_output),
-          ReasonRejet.CHAMP_INTERDIT, False)
+    rejet(parse_modele(ordonnance(prix=3), Ordonnance_output), ReasonRejet.CHAMP_INTERDIT, False)
 
 
 def test_parse_champ_interdit_prime_sur_les_autres_erreurs():
@@ -92,23 +90,27 @@ def test_parse_champ_interdit_prime_sur_les_autres_erreurs():
 
 def test_parse_texte_trop_long():
     lignes = [{"text": "a" * 301, "confident": "haute"}]
-    rejet(parse_modele(ordonnance(lignes=lignes), Ordonnance_output),
-          ReasonRejet.TAILLE_EXCESSIVE, True)
+    rejet(
+        parse_modele(ordonnance(lignes=lignes), Ordonnance_output),
+        ReasonRejet.TAILLE_EXCESSIVE,
+        True,
+    )
 
 
 @pytest.mark.parametrize(
     "surcharge",
     [
-        {"lisibilite": "moyenne"},                                    # hors Literal
+        {"lisibilite": "moyenne"},  # hors Literal
         {"type": "autre"},
-        {"lignes": [{"text": "", "confident": "haute"}]},             # texte vide
+        {"lignes": [{"text": "", "confident": "haute"}]},  # texte vide
         {"lignes": [{"text": "[illisible]", "confident": "haute"}]},  # illisible => basse
-        {"medicaments_ecrits": [{"text": "x"}]},                      # certitude absente
+        {"medicaments_ecrits": [{"text": "x"}]},  # certitude absente
     ],
 )
 def test_parse_schema_invalide(surcharge):
-    rejet(parse_modele(ordonnance(**surcharge), Ordonnance_output),
-          ReasonRejet.SCHEMA_INVALIDE, True)
+    rejet(
+        parse_modele(ordonnance(**surcharge), Ordonnance_output), ReasonRejet.SCHEMA_INVALIDE, True
+    )
 
 
 def test_parse_ne_journalise_jamais_le_contenu(caplog):
@@ -119,6 +121,7 @@ def test_parse_ne_journalise_jamais_le_contenu(caplog):
 
 
 # ---------- valider_ordonnance ----------
+
 
 def test_ordonnance_nominale():
     res = valider_ordonnance(ordonnance())
@@ -131,21 +134,25 @@ def test_ordonnance_acceptee_ne_fuit_pas_dans_le_repr():
 
 
 def test_ordonnance_signe_medical():
-    rejet(valider_ordonnance(ordonnance(signe_medical_visible=True)),
-          ReasonRejet.SIGNE_MEDICAL, False)
+    rejet(
+        valider_ordonnance(ordonnance(signe_medical_visible=True)), ReasonRejet.SIGNE_MEDICAL, False
+    )
 
 
 def test_signe_medical_prime_sur_medicament_absent():
     meds = [{"text": "Inconnu 9 mg", "confident": "haute"}]
-    rejet(valider_ordonnance(ordonnance(signe_medical_visible=True,
-                                        medicaments_ecrits=meds)),
-          ReasonRejet.SIGNE_MEDICAL, False)
+    rejet(
+        valider_ordonnance(ordonnance(signe_medical_visible=True, medicaments_ecrits=meds)),
+        ReasonRejet.SIGNE_MEDICAL,
+        False,
+    )
 
 
 def test_ordonnance_medicament_absent_des_lignes():
     meds = [{"text": "Amoxicilline 1 g", "confident": "haute"}]
-    rejet(valider_ordonnance(ordonnance(medicaments_ecrits=meds)),
-          ReasonRejet.MEDICAMENT_ABSENT, True)
+    rejet(
+        valider_ordonnance(ordonnance(medicaments_ecrits=meds)), ReasonRejet.MEDICAMENT_ABSENT, True
+    )
 
 
 def test_ordonnance_un_seul_medicament_absent_suffit_a_rejeter():
@@ -153,13 +160,13 @@ def test_ordonnance_un_seul_medicament_absent_suffit_a_rejeter():
         {"text": "Paracétamol 500 mg", "confident": "haute"},
         {"text": "Amoxicilline 1 g", "confident": "haute"},
     ]
-    rejet(valider_ordonnance(ordonnance(medicaments_ecrits=meds)),
-          ReasonRejet.MEDICAMENT_ABSENT, True)
+    rejet(
+        valider_ordonnance(ordonnance(medicaments_ecrits=meds)), ReasonRejet.MEDICAMENT_ABSENT, True
+    )
 
 
 def test_ordonnance_medicaments_sans_lignes_sont_rejetes():
-    rejet(valider_ordonnance(ordonnance(lignes=[])),
-          ReasonRejet.MEDICAMENT_ABSENT, True)
+    rejet(valider_ordonnance(ordonnance(lignes=[])), ReasonRejet.MEDICAMENT_ABSENT, True)
 
 
 def test_ordonnance_sans_medicament_est_acceptee():
@@ -192,6 +199,7 @@ def test_medicament_absent_ne_journalise_pas_le_texte(caplog):
 
 # ---------- valider_piece_identite ----------
 
+
 def test_piece_nominale_et_champs_omis_valent_none():
     res = valider_piece_identite(piece())
     assert isinstance(res, Accepte) and isinstance(res.output, IdCardFields)
@@ -204,8 +212,7 @@ def test_piece_acceptee_ne_fuit_pas_dans_le_repr():
 
 
 def test_piece_cle_inconnue_au_niveau_superieur():
-    rejet(valider_piece_identite(piece(adresse=champ("x"))),
-          ReasonRejet.CHAMP_INTERDIT, False)
+    rejet(valider_piece_identite(piece(adresse=champ("x"))), ReasonRejet.CHAMP_INTERDIT, False)
 
 
 def test_piece_cle_inconnue_dans_un_champ_est_ignoree():
@@ -215,16 +222,17 @@ def test_piece_cle_inconnue_dans_un_champ_est_ignoree():
 
 
 def test_piece_illisible_exige_certitude_basse():
-    rejet(valider_piece_identite(piece(sexe=champ("[illisible]", "haute"))),
-          ReasonRejet.SCHEMA_INVALIDE, True)
-    assert isinstance(
-        valider_piece_identite(piece(sexe=champ("[illisible]", "basse"))), Accepte)
+    rejet(
+        valider_piece_identite(piece(sexe=champ("[illisible]", "haute"))),
+        ReasonRejet.SCHEMA_INVALIDE,
+        True,
+    )
+    assert isinstance(valider_piece_identite(piece(sexe=champ("[illisible]", "basse"))), Accepte)
 
 
 def test_piece_illisible_seulement_si_valeur_exacte():
     # règle `==` pour Extracted_field (contrairement à `in` pour Drug)
-    assert isinstance(
-        valider_piece_identite(piece(sexe=champ("x [illisible]", "haute"))), Accepte)
+    assert isinstance(valider_piece_identite(piece(sexe=champ("x [illisible]", "haute"))), Accepte)
 
 
 def test_piece_json_invalide():

@@ -15,12 +15,14 @@ class LigneMenu:
     callback: str
     intent: Intent
     kind: str | None = None
+    demo: bool = False  # ligne affichée seulement si DEMO_MODE
 
 
 MENU: tuple[LigneMenu, ...] = (
     LigneMenu("Centre de santé", "menu:health_center", "search", "health_center"),
     LigneMenu("Pharmacie", "menu:pharmacy", "search", "pharmacy"),
     LigneMenu("Pharmacie de garde", "menu:on_call", "search", "on_call"),
+    LigneMenu("Chercher un médicament", "menu:stock", "stock", demo=True),
     LigneMenu("Me faire transporter", "menu:transport", "transport"),
     LigneMenu("Autre demande", CALLBACK_AUTRE, "unknown"),
 )

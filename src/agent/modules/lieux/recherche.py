@@ -109,7 +109,9 @@ def _nombre(valeur: object) -> float | None:
     return float(valeur)
 
 
-def classer(candidats: list[_Candidat], lat: float, lng: float, n: int = NB_RESULTATS) -> list[Lieu]:
+def classer(
+    candidats: list[_Candidat], lat: float, lng: float, n: int = NB_RESULTATS
+) -> list[Lieu]:
     """Les n candidats les plus proches (égalités départagées par osm_ref)."""
     avec_distance = sorted(
         ((distance_m(lat, lng, c.lat, c.lng), c) for c in candidats),
@@ -160,7 +162,7 @@ async def _candidats(session: AsyncSession, kind: str) -> list[_Candidat]:
         )
     )
     candidats = []
-    for osm_ref, name, lat, lng, quartier, phone, hours_text in (await session.execute(requete)):
+    for osm_ref, name, lat, lng, quartier, phone, hours_text in await session.execute(requete):
         if not name or not name.strip():
             continue
         candidats.append(

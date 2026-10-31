@@ -14,6 +14,7 @@ NUMERO_E164 = "+22670123456"
 
 # ---------- Fixtures ----------
 
+
 @pytest.fixture
 def key_a() -> str:
     return Fernet.generate_key().decode()
@@ -46,6 +47,7 @@ def env(monkeypatch, key_a):
 
 # ---------- build_fernet ----------
 
+
 @pytest.mark.parametrize("keys_csv", ["", " ", ",", " , "])
 def test_build_fernet_empty_raises(keys_csv):
     with pytest.raises(ValueError):
@@ -66,12 +68,13 @@ def test_build_fernet_one_invalid_among_valid_raises(key_a):
 def test_build_fernet_strips_spaces_and_uses_first_key_to_encrypt(key_a, key_b):
     cipher = crypto.build_fernet(f" {key_a} , {key_b} ")
     token = cipher.encrypt(b"secret")
-    assert Fernet(key_a).decrypt(token) == b"secret"   # 1re clé = chiffrement
+    assert Fernet(key_a).decrypt(token) == b"secret"  # 1re clé = chiffrement
     with pytest.raises(InvalidToken):
         Fernet(key_b).decrypt(token)
 
 
 # ---------- get_fernet ----------
+
 
 def test_get_fernet_uses_settings(env, key_a):
     token = Fernet(key_a).encrypt(b"x")
@@ -83,6 +86,7 @@ def test_get_fernet_is_cached(env):
 
 
 # ---------- encrypt / decrypt ----------
+
 
 def test_roundtrip_bytes(fernet_a):
     data = b"\x00\x01 donnees binaires \xff"
@@ -127,17 +131,18 @@ def test_wrong_key_raises(key_a, key_b):
 def test_key_rotation(key_a, key_b):
     old_token = crypto.build_fernet(key_a).encrypt(b"secret")
 
-    rotated = crypto.build_fernet(f"{key_b},{key_a}")      # nouvelle clé en 1re position
-    assert rotated.decrypt(old_token) == b"secret"          # l'ancien chiffré reste lisible
+    rotated = crypto.build_fernet(f"{key_b},{key_a}")  # nouvelle clé en 1re position
+    assert rotated.decrypt(old_token) == b"secret"  # l'ancien chiffré reste lisible
 
     new_token = rotated.encrypt(b"autre")
-    assert Fernet(key_b).decrypt(new_token) == b"autre"     # le nouveau utilise la clé B
+    assert Fernet(key_b).decrypt(new_token) == b"autre"  # le nouveau utilise la clé B
 
-    with pytest.raises(InvalidToken):                       # après retrait de A
+    with pytest.raises(InvalidToken):  # après retrait de A
         crypto.build_fernet(key_b).decrypt(old_token)
 
 
 # ---------- normalize_phone ----------
+
 
 @pytest.mark.parametrize(
     "raw",
@@ -171,6 +176,7 @@ def test_normalize_phone_error_does_not_leak_number():
 
 
 # ---------- phone_hmac ----------
+
 
 def test_phone_hmac_stable_across_formats():
     assert crypto.phone_hmac(NUMERO, key="k") == crypto.phone_hmac("+226 70 12 34 56", key="k")

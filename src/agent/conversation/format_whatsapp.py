@@ -11,13 +11,11 @@ import re
 
 MAX_EMOJIS = 3
 
-_BASE = "\U0001F000-\U0001FAFF\u2300-\u23FF\u2600-\u27BF\u2B00-\u2BFF"
-_PEAU = "\U0001F3FB-\U0001F3FF"
+_BASE = "\U0001f000-\U0001faff\u2300-\u23ff\u2600-\u27bf\u2b00-\u2bff"
+_PEAU = "\U0001f3fb-\U0001f3ff"
 _ELEMENT = rf"[{_BASE}](?:\uFE0F|[{_PEAU}])*"
-_EMOJI = re.compile(
-    rf"[\U0001F1E6-\U0001F1FF]{{2}}|{_ELEMENT}(?:\u200D{_ELEMENT})*"
-)
-_ALARME = re.compile("\U0001F6A8\uFE0F?")
+_EMOJI = re.compile(rf"[\U0001F1E6-\U0001F1FF]{{2}}|{_ELEMENT}(?:\u200D{_ELEMENT})*")
+_ALARME = re.compile("\U0001f6a8\ufe0f?")
 
 _GRAS = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 _BARRE = re.compile(r"~~(.+?)~~", re.DOTALL)

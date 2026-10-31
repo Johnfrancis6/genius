@@ -3,6 +3,7 @@
 Si une régression ouvrait une session avant de valider, ces tests échoueraient
 (erreur de connexion ou de réglages au lieu de ValueError).
 """
+
 import uuid
 
 import pytest

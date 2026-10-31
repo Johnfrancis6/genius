@@ -1,4 +1,5 @@
 """Tests de ConversationStateStore sur un vrai PostgreSQL (testcontainers)."""
+
 import json
 
 import pytest
@@ -28,7 +29,6 @@ ETAT = {
     "awaiting_detail": "quartier",
     "clarify_turns": 2,
     "identity_received": True,
-
 }
 
 

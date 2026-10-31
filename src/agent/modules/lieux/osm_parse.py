@@ -203,5 +203,3 @@ def marquer_doublons(lieux: Iterable[LieuOsm]) -> dict[str, str]:
         else:
             doublons[lieu.osm_ref] = garde.osm_ref
     return doublons
-
-

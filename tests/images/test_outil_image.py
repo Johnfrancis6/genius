@@ -59,12 +59,13 @@ async def test_extraction_reussie(images, resultats, extracteurs, state):
     assert u["image_status"] == m.Status.EXTRACTED.value
     assert u["image_type_detected"] == "ordonnance" and u["image_result_id"] == "res-1"
     assert len(resultats.recus) == 1 and images.supprimees == [("u1", "img1")]
-    assert SECRET not in repr(u)               # les données ne vont pas à l'agent
+    assert SECRET not in repr(u)  # les données ne vont pas à l'agent
 
 
 async def test_signe_medical(images, resultats, extracteurs, state):
     cmd = await appeler(
-        fabriquer(images, resultats, FakeVLM(classif(signe=True)), extracteurs), state)
+        fabriquer(images, resultats, FakeVLM(classif(signe=True)), extracteurs), state
+    )
     assert cmd.update["image_status"] == m.Status.MEDICAL_SIGN.value
     assert cmd.update["image_result_id"] is None
     assert all(e.appels == 0 for e in extracteurs.values())
@@ -83,8 +84,9 @@ async def test_exception_interne(magasin, extracteurs, state):
 
 async def test_l_image_est_supprimee_meme_apres_une_erreur(resultats, extracteurs, state):
     images = FakeImageStore({("u1", "img1"): b"x"})
-    await appeler(fabriquer(images, FakeResultStore(echec_put=True),
-                            FakeVLM(classif()), extracteurs), state)
+    await appeler(
+        fabriquer(images, FakeResultStore(echec_put=True), FakeVLM(classif()), extracteurs), state
+    )
     assert images.supprimees == [("u1", "img1")]
 
 
@@ -95,18 +97,21 @@ async def test_echec_de_suppression_ne_masque_pas_le_resultat(resultats, extract
 
 
 async def test_description_issue_de_l_image_n_atteint_pas_l_agent(
-        images, resultats, extracteurs, state):
+    images, resultats, extracteurs, state
+):
     vlm = FakeVLM(classif("autre", description=INJECTION))
-    cmd = await appeler(fabriquer(images, resultats, vlm, extracteurs),
-                        {**state, "expected_image_type": None})
+    cmd = await appeler(
+        fabriquer(images, resultats, vlm, extracteurs), {**state, "expected_image_type": None}
+    )
     assert cmd.update["image_status"] == m.Status.OTHER.value
     assert INJECTION not in repr(cmd.update)
 
 
 async def test_type_attendu_hors_liste_est_ignore(images, resultats, extracteurs, state):
     vlm = FakeVLM(classif("piece_identite"))
-    cmd = await appeler(fabriquer(images, resultats, vlm, extracteurs),
-                        {**state, "expected_image_type": "admin"})
+    cmd = await appeler(
+        fabriquer(images, resultats, vlm, extracteurs), {**state, "expected_image_type": "admin"}
+    )
     assert cmd.update["image_status"] == m.Status.TYPE_TO_CONFIRM.value
     assert all(e.appels == 0 for e in extracteurs.values())
 

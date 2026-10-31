@@ -11,8 +11,11 @@ from sqlalchemy import (
     MetaData,
     String,
     Text,
+    UniqueConstraint,
     func,
+    text,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 NAMING_CONVENTION = {
@@ -165,3 +168,32 @@ class OnCallPharmacy(Base):
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     source: Mapped[str] = mapped_column(String(64))
+
+
+class DemoStock(Base):
+    """Stock simulé pour la démo. Sans FK vers osm_places : supprimable d'un bloc."""
+
+    __tablename__ = "demo_stock"
+    __table_args__ = (UniqueConstraint("osm_ref", "produit_norm"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    osm_ref: Mapped[str] = mapped_column(String(32), index=True)
+    produit_norm: Mapped[str] = mapped_column(String(100))
+    disponible: Mapped[bool] = mapped_column()
+    mis_a_jour_le: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class DemoAgent(Base):
+    """Agent de santé fictif de la démo. Numéros NUM-TEST-n uniquement."""
+
+    __tablename__ = "demo_agents"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    nom: Mapped[str] = mapped_column(String(100))
+    role: Mapped[str] = mapped_column(String(40))
+    situations: Mapped[list[str]] = mapped_column(ARRAY(String(20)))
+    telephone: Mapped[str] = mapped_column(String(30))
+    horaires: Mapped[str] = mapped_column(String(100))
+    actif: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
